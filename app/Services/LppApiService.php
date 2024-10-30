@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,8 +36,12 @@ class LppApiService
 
     private function callApi(string $endpoint, string $method = 'GET')
     {
-        return Http::withHeaders([
-            'Authorization' => "Bearer {$this->apiKey}",
-        ])->$method("{$this->baseUrl}/{$endpoint}");
+        $cacheKey = "lpp_api_" . md5($endpoint . $method);
+
+        return Cache::remember($cacheKey, 30, function () use ($endpoint, $method) {
+            return Http::withHeaders([
+                'Authorization' => "Bearer {$this->apiKey}",
+            ])->$method("{$this->baseUrl}/{$endpoint}");
+        });
     }
 }
