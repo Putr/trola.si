@@ -64,7 +64,6 @@ services:
     image: "redis:alpine"
     container_name: trola_redis
     restart: unless-stopped
-    restart: unless-stopped
     expose:
       - "${REDIS_PORT}"
     volumes:
@@ -74,7 +73,7 @@ services:
 
   trola_app_phpmyadmin:
     image: phpmyadmin/phpmyadmin:5
-    container_name: app_pma
+    container_name: trola_app_phpmyadmin
     restart: unless-stopped
     environment:
       PMA_HOST: trola_app_db

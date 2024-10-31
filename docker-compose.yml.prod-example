@@ -19,9 +19,6 @@ services:
       - ./docker-env/php/local.ini:/usr/local/etc/php/conf.d/local.ini
     expose:
       - 9000
-    links:
-      - trola_app_db
-      - trola_app_phpmyadmin
     networks:
       - trola
 
@@ -42,24 +39,6 @@ services:
     networks:
       - trola
 
-  #MySQL Service
-  trola_app_db:
-    image: mysql:8
-    container_name: ${DB_HOST}
-    restart: unless-stopped
-    tty: true
-    expose:
-      - "${DB_PORT}"
-    environment:
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      SERVICE_TAGS: dev
-      SERVICE_NAME: mysql
-    volumes:
-      - dbdata:/var/lib/mysql/
-    networks:
-      - trola
-
   trola_redis:
     image: "redis:alpine"
     container_name: trola_redis
@@ -69,21 +48,6 @@ services:
       - "${REDIS_PORT}"
     volumes:
       - redisdata:/data
-    networks:
-      - trola
-
-  trola_app_phpmyadmin:
-    image: phpmyadmin/phpmyadmin:5
-    container_name: app_pma
-    restart: unless-stopped
-    environment:
-      PMA_HOST: trola_app_db
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: root
-      UPLOAD_LIMIT: 20M
-    ports:
-      - "8080:80"
     networks:
       - trola
 
