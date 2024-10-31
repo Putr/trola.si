@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Collection;
 
 class Station extends Model
 {
@@ -28,5 +29,17 @@ class Station extends Model
         return $this->belongsTo(Station::class, 'opposite_station_id');
     }
 
-   
+    public function getArrivalsAttribute(): Collection
+    {
+        $api = app(LppApiService::class);
+        $arrivals = $api->getStationArrivals($this->code);
+
+        if (!$arrivals) {
+            return collect();
+        }
+
+        return collect($arrivals)->map(function ($arrivalData) {
+            return Arrival::fromArray($arrivalData);
+        });
+    }
 }

@@ -19,30 +19,30 @@ class LppApiService
         $this->apiKey = env('LPP_API_KEY');
     }
 
-    public function getStationArrivals(string $stationId): array|null
+    public function getStationArrivals(string $stationCode): array|null
     {
         return $this->safeApiCall(
             "Station Arrivals",
-            "/station/arrival?station-code={$stationId}",
-            ['station_id' => $stationId]
+            "/station/arrival?station-code={$stationCode}",
+            ['station_id' => $stationCode]
         );
     }
 
-    public function getStationDetails(string $stationId): array|null
+    public function getStationDetails(string $stationCode): array|null
     {
         return $this->safeApiCall(
             "Station Details",
-            "/station/station-details?station-code={$stationId}&show-subroutes=1",
-            ['station_id' => $stationId]
+            "/station/station-details?station-code={$stationCode}&show-subroutes=1",
+            ['station_id' => $stationCode]
         );
     }
 
-    public function getRoutesOnStation(string $stationId): array|null
+    public function getRoutesOnStation(string $stationCode): array|null
     {
         return $this->safeApiCall(
             "Routes On Station",
-            "/station/routes-on-station?station-code={$stationId}",
-            ['station_id' => $stationId]
+            "/station/routes-on-station?station-code={$stationCode}",
+            ['station_id' => $stationCode]
         );
     }
 
