@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Station;
 use App\Services\LppApiService;
 
 class Controller
@@ -11,13 +12,16 @@ class Controller
         return view('index');
     }
 
-    public function show(string $stopId, LppApiService $lppService)
+    public function show(string $stopId)
     {
-        list($station, $arrivals) = $lppService->getStationArrivals($stopId);
-        dd($station, $arrivals);
+        $station = Station::where('code', $stopId)->first();
+
+        if (!$station) {
+            return view('station-not-found');
+        }
+
         return view('station', [
-            'station' => $station,
-            'arrivals' => $arrivals,
+            'station' => $station
         ]);
     }
 }

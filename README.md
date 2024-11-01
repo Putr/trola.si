@@ -50,6 +50,20 @@ Before deploying the application, you'll need:
    - Create all necessary database tables
    - Load bus station data from the LPP API
 
+7. Set up the cron job for automatic data updates:
+
+   ```bash
+   # Open crontab configuration
+   crontab -e
+
+   # Add this line to run Laravel's scheduler every minute
+   * * * * * cd /path-to-your-project && php artisan schedule:run >> /dev/null 2>&1
+   ```
+
+   This will:
+   - Run the database seeder daily at 4 AM to refresh station data
+   - Ensure your data stays up to date with the LPP API
+
 ## Services
 
 ### PHPMyAdmin
