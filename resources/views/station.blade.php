@@ -51,7 +51,7 @@
             const isSearchFocused = document.activeElement === searchInput;
 
             if (hasFocus && !isSearchFocused) {
-                setCookie('autoreload', '1', 15);
+                setCookie('autoreload', '1', 5);
                 window.location.reload();
             } else {
                 setupAutoReload();

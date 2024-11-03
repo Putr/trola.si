@@ -66,7 +66,7 @@ class Controller extends BaseController
             return view('station-not-found');
         }
 
-        $this->trackPageView($stopId);
+        $this->trackPageView('station_' . $stopId);
 
         return view('station', [
             'station' => $station,
@@ -82,7 +82,7 @@ class Controller extends BaseController
 
     public function showBothDirections(string $stopId)
     {
-        $this->trackPageView($stopId . '_all');
+        $this->trackPageView('station_' . $stopId . '_all');
 
         $station = Station::where('code', $stopId)->first();
         $oppositeStation = Station::where('code', $station->oppositeStationCode)->first();
