@@ -8,13 +8,13 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Redis;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Request as RequestFacade;
 
 class Controller extends BaseController
 {
-    use ValidatesRequests;
+    use AuthorizesRequests, ValidatesRequests;
 
     private LppApiService $lppApiService;
 
@@ -23,8 +23,22 @@ class Controller extends BaseController
         $this->lppApiService = $lppApiService;
     }
 
+    private function trackPageView(string $page)
+    {
+        // Skip if this is an auto-reload
+        if (RequestFacade::cookie('autoreload')) {
+            return;
+        }
+
+        $date = Carbon::now()->format('Y_m_d');
+        $key = "stats_{$date}_{$page}";
+        Redis::incr($key);
+    }
+
     public function index()
     {
+        $this->trackPageView('home');
+
         $stations = Station::limit(20)
             ->orderBy('name')
             ->get();
@@ -48,8 +62,11 @@ class Controller extends BaseController
         $station = Station::where('code', $stopId)->first();
 
         if (!$station) {
+            $this->trackPageView('not_found');
             return view('station-not-found');
         }
+
+        $this->trackPageView($stopId);
 
         return view('station', [
             'station' => $station,
@@ -65,6 +82,8 @@ class Controller extends BaseController
 
     public function showBothDirections(string $stopId)
     {
+        $this->trackPageView($stopId . '_all');
+
         $station = Station::where('code', $stopId)->first();
         $oppositeStation = Station::where('code', $station->oppositeStationCode)->first();
 
@@ -87,6 +106,8 @@ class Controller extends BaseController
 
     public function search(Request $request)
     {
+        $this->trackPageView('search');
+
         $query = $request->get('q');
         $direction = $request->get('direction', 'all');
 
@@ -134,6 +155,8 @@ class Controller extends BaseController
 
     public function geosearch(Request $request)
     {
+        $this->trackPageView('geosearch');
+
         $latitude = $request->get('lat');
         $longitude = $request->get('lon');
 
