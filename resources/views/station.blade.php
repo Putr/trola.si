@@ -3,14 +3,14 @@
 @section('content')
 <div class="container mx-auto">
     <div class="">
-        <form class="flex justify-center gap-2">
+        <form class="flex justify-center gap-2" action="/search" method="GET">
             <input type="hidden" name="direction" value="{{
                 $directionToCenter === true ? 'to' :
                 ($directionToCenter === false ? 'from' : 'all')
             }}">
-            <input type="text" value="{{ $station->name }}"
+            <input type="text" name="q" value="{{ $station->name }}"
                 class="text-3xl font-bold bg-gray-100 shadow-md px-4 py-2 w-full max-w-lg h-16">
-            <button type="button"
+            <button type="submit"
                 class="bg-gray-100 font-bold hover:bg-emerald-700 hover:text-white transition-colors duration-150 px-6 shadow-md h-16">
                 Išči
             </button>
@@ -25,7 +25,7 @@
             />
 
             <x-direction-button
-                direction="all" 
+                direction="all"
                 :is-active="$directionToCenter === null"
                 :href="$hrefs['all']"
             />

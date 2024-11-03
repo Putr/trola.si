@@ -41,7 +41,7 @@ class Station extends Model
         $data = $api->getStationArrivals($this->code);
 
         if (empty($data['arrivals'])) {
-            return collect();
+            return [];
         }
 
         $out = [];
