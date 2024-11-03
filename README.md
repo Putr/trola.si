@@ -10,6 +10,8 @@ Trola.si is a web application that provides real-time arrival information for Lj
 
 The application uses the official LPP (Ljubljana Public Transport) API to fetch live arrival data and provides a clean, mobile-friendly interface for accessing this information.
 
+See it live at [trola.si](https://trola.si).
+
 
 ## Prerequisites
 
