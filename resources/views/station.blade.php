@@ -21,26 +21,27 @@
             <x-direction-button
                 direction="to"
                 :is-active="$directionToCenter === true"
-                :href="$directionToCenter === true ? null : '/' . $station->oppositeStationCode"
+                :href="$hrefs['to']"
             />
 
             <x-direction-button
-                direction="all"
+                direction="all" 
                 :is-active="$directionToCenter === null"
-                :href="$directionToCenter === null ? null : '/' . $station->code . '/all'"
+                :href="$hrefs['all']"
             />
 
             <x-direction-button
                 direction="from"
                 :is-active="$directionToCenter === false"
-                :href="$directionToCenter === false ? null : '/' . $station->oppositeStationCode"
+                :href="$hrefs['from']"
             />
         </div>
     </div>
 
-    <x-arrivals-display
-        :arrivals="$arrivals"
-        :showDirectionNameOnMobile="!isset($direction) || is_null($direction)"
-    />
+    @if(is_null($directionToCenter))
+    <x-arrivals-display-multi :arrivals="$arrivals" />
+    @else
+    <x-arrivals-display :arrivals="$arrivals" :showDirectionNameOnMobile="false" />
+    @endif
 </div>
 @endsection

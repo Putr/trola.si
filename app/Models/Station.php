@@ -59,7 +59,6 @@ class Station extends Model
             sort($data['etas']); // Sort ETAs in ascending order
             $out[$routeName]['etaMin'] = $data['etas'][0] <= 9 ? $data['etas'][0] : null; // Get smallest ETA if <= 5min
             $out[$routeName]['laterEtas'] = $data['etas'][0] <= 9 ? array_slice($data['etas'], 1) : $data['etas']; // Get remaining ETAs
-            unset($out[$routeName]['etas']); // Remove original etas array
         }
         $out = array_values($out);
         usort($out, function ($a, $b) {
