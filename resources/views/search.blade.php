@@ -10,7 +10,7 @@
             }}">
             <input type="text" name="q" value="{{ $query ?? '' }}"
                 class="text-3xl font-bold bg-gray-100 shadow-md px-4 py-2 w-full max-w-lg h-16"
-                placeholder="Vnesite ime postaje...">
+                placeholder="Ime postaje...">
             <button type="submit"
                 class="bg-gray-100 font-bold hover:bg-emerald-700 hover:text-white transition-colors duration-150 px-6 shadow-md h-16">
                 Išči
