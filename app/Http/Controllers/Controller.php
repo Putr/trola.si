@@ -21,7 +21,26 @@ class Controller
         }
 
         return view('station', [
-            'station' => $station
+            'station' => $station,
+            'arrivals' => $station->arrivals,
+            'directionToCenter' => $station->is_direction_to_center
+        ]);
+    }
+
+    public function showBothDirections(string $stopId)
+    {
+        $station = Station::where('code', $stopId)->first();
+        $oppositeStation = Station::where('code', $station->oppositeStationCode)->first();
+
+        $arrivals = collect(array_merge($station->arrivals, $oppositeStation->arrivals))
+            ->sortBy('route_name_numeric')
+            ->values()
+            ->all();
+
+        return view('station', [
+            'station' => $station,
+            'arrivals' => $arrivals,
+            'directionToCenter' => null
         ]);
     }
 }

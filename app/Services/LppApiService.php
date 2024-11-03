@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Env;
 
 class LppApiService
 {
@@ -15,8 +14,8 @@ class LppApiService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(env('LPP_API_URL'), '/');
-        $this->apiKey = env('LPP_API_KEY');
+        $this->baseUrl = rtrim(config('lpp.api_url'), '/');
+        $this->apiKey = config('lpp.api_key');
     }
 
     public function getStationArrivals(string $stationCode): array|null
@@ -73,7 +72,11 @@ class LppApiService
     private function safeApiCall(string $operation, string $endpoint, array $context = []): array|null
     {
         try {
-            $response = $this->callApi($endpoint);
+            $cacheKey = "lpp_api_" . md5($endpoint . 'GET');
+
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$this->apiKey}",
+            ])->get("{$this->baseUrl}/{$endpoint}");
 
             if (!$response->successful()) {
                 Log::error("LPP API {$operation} failed", [
@@ -85,21 +88,13 @@ class LppApiService
             }
 
             $data = $response->json();
-            return $data['data'];
+            // Only cache successful responses
+            return Cache::remember($cacheKey, 30, function () use ($data) {
+                return $data['data'];
+            });
         } catch (\Exception $e) {
             Log::error("LPP API {$operation} failed: " . $e->getMessage(), $context);
             return null;
         }
-    }
-
-    private function callApi(string $endpoint, string $method = 'GET'): Response
-    {
-        $cacheKey = "lpp_api_" . md5($endpoint . $method);
-
-        return Cache::remember($cacheKey, 30, function () use ($endpoint, $method) {
-            return Http::withHeaders([
-                'Authorization' => "Bearer {$this->apiKey}",
-            ])->$method("{$this->baseUrl}/{$endpoint}");
-        });
     }
 }

@@ -1,10 +1,46 @@
 @extends('layout')
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-2xl font-bold mb-4">Bus Stop Information</h1>
-    <div class="bg-white shadow-md rounded p-6">
-        <p class="text-gray-700">Welcome to the bus stop information page.</p>
+<div class="container mx-auto">
+    <div class="">
+        <form class="flex justify-center gap-2">
+            <input type="hidden" name="direction" value="{{
+                $directionToCenter === true ? 'to' :
+                ($directionToCenter === false ? 'from' : 'all')
+            }}">
+            <input type="text" value="{{ $station->name }}"
+                class="text-3xl font-bold bg-gray-100 shadow-md px-4 py-2 w-full max-w-lg h-16">
+            <button type="button"
+                class="bg-gray-100 font-bold hover:bg-emerald-700 hover:text-white transition-colors duration-150 px-6 shadow-md h-16">
+                Išči
+            </button>
+        </form>
     </div>
+    <div class="mt-4 mb-12">
+        <div class="flex justify-center gap-2 max-w-xs mx-auto">
+            <x-direction-button
+                direction="to"
+                :is-active="$directionToCenter === true"
+                :href="$directionToCenter === true ? null : '/' . $station->oppositeStationCode"
+            />
+
+            <x-direction-button
+                direction="all"
+                :is-active="$directionToCenter === null"
+                :href="$directionToCenter === null ? null : '/' . $station->code . '/all'"
+            />
+
+            <x-direction-button
+                direction="from"
+                :is-active="$directionToCenter === false"
+                :href="$directionToCenter === false ? null : '/' . $station->oppositeStationCode"
+            />
+        </div>
+    </div>
+
+    <x-arrivals-display
+        :arrivals="$arrivals"
+        :showDirectionNameOnMobile="!isset($direction) || is_null($direction)"
+    />
 </div>
 @endsection
