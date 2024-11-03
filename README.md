@@ -1,5 +1,16 @@
 # Trola.si
 
+Trola.si is a web application that provides real-time arrival information for Ljubljana city buses. It allows users to:
+
+- Search for bus stations by name or station code
+- View upcoming bus arrivals for any station
+- Filter arrivals by direction (to/from city center)
+- Find nearby stations using geolocation
+- See estimated arrival times updated in real-time
+
+The application uses the official LPP (Ljubljana Public Transport) API to fetch live arrival data and provides a clean, mobile-friendly interface for accessing this information.
+
+
 ## Prerequisites
 
 Before deploying the application, you'll need:
@@ -63,9 +74,3 @@ Before deploying the application, you'll need:
    This will:
    - Run the database seeder daily at 4 AM to refresh station data
    - Ensure your data stays up to date with the LPP API
-
-## Services
-
-### PHPMyAdmin
-
-<http://localhost:8080/>
