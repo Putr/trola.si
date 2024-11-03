@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Request as RequestFacade;
+use Illuminate\Support\Facades\View;
 
 class Controller extends BaseController
 {
