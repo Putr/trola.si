@@ -166,7 +166,13 @@ class Controller extends BaseController
         // Sort stations in the same order as the API response
         $stationsMap = $stations->keyBy('code');
         $sortedStations = collect($nearbyStations)->map(function ($station) use ($stationsMap) {
-            return $stationsMap[$station['ref_id']] ?? null;
+            if (isset($stationsMap[$station['ref_id']])) {
+                $stationModel = $stationsMap[$station['ref_id']];
+                // Inject the distance as a temporary attribute
+                $stationModel->distance = round($station['distance']);
+                return $stationModel;
+            }
+            return null;
         })->filter();
 
         if ($sortedStations->count() === 1) {
