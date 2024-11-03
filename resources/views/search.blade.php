@@ -61,11 +61,17 @@
                         </div>
                         <div>
                             <h2 class="text-xl font-bold">{{ $station->name }}</h2>
+                            @if(isset($station->distance))
+                            <p class="text-gray-600 hidden md:block">Koda postaje: {{ $station->code }}</p>
+                            <p class="text-gray-600 block md:hidden">{{ $station->distance }}m</p>
+                            @else
                             <p class="text-gray-600">Koda postaje: {{ $station->code }}</p>
+                            @endif
                         </div>
                     </div>
                     @if(isset($station->distance))
-                    <div class="station-distance font-bold text-gray-400">{{ $station->distance }}m</div>
+                    <div class="station-distance font-bold text-gray-400 hidden md:block">{{ $station->distance }}m
+                    </div>
                     @endif
                 </div>
             </a>
