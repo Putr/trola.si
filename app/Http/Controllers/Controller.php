@@ -16,6 +16,13 @@ class Controller extends BaseController
 {
     use ValidatesRequests;
 
+    private LppApiService $lppApiService;
+
+    public function __construct(LppApiService $lppApiService)
+    {
+        $this->lppApiService = $lppApiService;
+    }
+
     public function index()
     {
         $stations = Station::limit(20)
@@ -31,7 +38,8 @@ class Controller extends BaseController
                 'to' => '/search?direction=to',
                 'from' => '/search?direction=from',
                 'all' => '/search?direction=all'
-            ]
+            ],
+            'useLocation' => true
         ]);
     }
 
@@ -83,27 +91,31 @@ class Controller extends BaseController
         $direction = $request->get('direction', 'all');
 
         if (empty($query)) {
-            return redirect('/');
-        }
-
-        $stations = Station::where(function ($q) use ($query) {
-            $q->whereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query . '*'])
-                ->orWhere('name', 'LIKE', '%' . $query . '%')
-                ->orWhere('code', 'LIKE', $query . '%');
-        });
-
-        if ($direction !== 'all') {
-            $stations->where('is_direction_to_center', $direction === 'to');
-        }
-
-        $stations = $stations->limit(10)->get();
-
-        if ($stations->count() === 1) {
-            $station = $stations->first();
-            if ($direction === 'all') {
-                return redirect('/' . $station->code . '/all');
+            $stations = Station::query();
+            if ($direction !== 'all') {
+                $stations->where('is_direction_to_center', $direction === 'to');
             }
-            return redirect('/' . $station->code);
+            $stations = $stations->limit(10)->get();
+        } else {
+            $stations = Station::where(function ($q) use ($query) {
+                $q->whereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query . '*'])
+                    ->orWhere('name', 'LIKE', '%' . $query . '%')
+                    ->orWhere('code', 'LIKE', $query . '%');
+            });
+
+            if ($direction !== 'all') {
+                $stations->where('is_direction_to_center', $direction === 'to');
+            }
+
+            $stations = $stations->limit(10)->get();
+
+            if ($stations->count() === 1) {
+                $station = $stations->first();
+                if ($direction === 'all') {
+                    return redirect('/' . $station->code . '/all');
+                }
+                return redirect('/' . $station->code);
+            }
         }
 
         return view('search', [
@@ -111,11 +123,68 @@ class Controller extends BaseController
             'query' => $query,
             'direction' => $direction,
             'directionToCenter' => $direction === 'all' ? null : ($direction === 'to' ? true : false),
+            'useLocation' => false,
             'hrefs' => [
                 'to' => '/search?q=' . $query . '&direction=to',
                 'from' => '/search?q=' . $query . '&direction=from',
                 'all' => '/search?q=' . $query . '&direction=all'
             ]
+        ]);
+    }
+
+    public function geosearch(Request $request)
+    {
+        $latitude = $request->get('lat');
+        $longitude = $request->get('lon');
+
+        if (empty($latitude) || empty($longitude)) {
+            return redirect('/search');
+        }
+
+        $nearbyStations = $this->lppApiService->getStationsInRange($latitude, $longitude);
+
+        if (!$nearbyStations) {
+            return view('search', [
+                'stations' => collect([]),
+                'query' => '',
+                'direction' => 'all',
+                'directionToCenter' => null,
+                'hrefs' => [
+                    'to' => "/geosearch?lat={$latitude}&long={$longitude}&direction=to",
+                    'from' => "/geosearch?lat={$latitude}&long={$longitude}&direction=from",
+                    'all' => "/geosearch?lat={$latitude}&long={$longitude}&direction=all"
+                ],
+                'useLocation' => false,
+                'error' => 'V bližini ni najdenih postaj.'
+            ]);
+        }
+
+        // Convert API response to Station models
+        $stationCodes = collect($nearbyStations)->pluck('ref_id')->toArray();
+        $stations = Station::whereIn('code', $stationCodes)->get();
+
+        // Sort stations in the same order as the API response
+        $stationsMap = $stations->keyBy('code');
+        $sortedStations = collect($nearbyStations)->map(function ($station) use ($stationsMap) {
+            return $stationsMap[$station['ref_id']] ?? null;
+        })->filter();
+
+        if ($sortedStations->count() === 1) {
+            $station = $sortedStations->first();
+            return redirect('/' . $station->code . '/all');
+        }
+
+        return view('search', [
+            'stations' => $sortedStations,
+            'query' => '',
+            'direction' => 'all',
+            'directionToCenter' => null,
+            'hrefs' => [
+                'to' => "/geosearch?lat={$latitude}&long={$longitude}&direction=to",
+                'from' => "/geosearch?lat={$latitude}&long={$longitude}&direction=from",
+                'all' => "/geosearch?lat={$latitude}&long={$longitude}&direction=all"
+            ],
+            'useLocation' => false
         ]);
     }
 }

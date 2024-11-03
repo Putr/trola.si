@@ -27,10 +27,20 @@
         </div>
     </div>
 
+    @if($useLocation)
+        @include('components.location-handler')
+    @endif
+
     @if(isset($stations))
     <div class="max-w-2xl mx-auto">
         @if($stations->isEmpty())
-        <p class="text-center text-gray-600">Ni najdenih postaj.</p>
+            <p class="text-center text-gray-600">
+                @if(isset($error))
+                    {{ $error }}
+                @else
+                    Ni najdenih postaj.
+                @endif
+            </p>
         @else
         <div class="space-y-4">
             @foreach($stations as $station)

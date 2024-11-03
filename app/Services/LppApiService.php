@@ -65,6 +65,19 @@ class LppApiService
         );
     }
 
+    public function getStationsInRange(float $latitude, float $longitude, int $radius = 300): array|null
+    {
+        return $this->safeApiCall(
+            "Stations In Range",
+            "/station/stations-in-range?latitude={$latitude}&longitude={$longitude}&radius={$radius}",
+            [
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'radius' => $radius
+            ]
+        );
+    }
+
     //
     // UTILITY
     //
