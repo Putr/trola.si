@@ -4,7 +4,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title')</title>
+    <title>@yield('title', 'Trola.si - Naslednji prihodi Ljubljanskih avtobusov')</title>
+    <meta name="description"
+        content="@yield('description', 'Preverite naslednje prihode Ljubljanskih avtobusov v realnem času. Enostavno iskanje postaj in prikazovanje prihodov avtobusov LPP.')">
+
+    @yield('meta', '')
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/imgs/bus.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:title" content="@yield('title', 'Trola.si - Naslednji prihodi Ljubljanskih avtobusov')">
+    <meta property="og:description"
+        content="@yield('description', 'Preverite naslednje prihode Ljubljanskih avtobusov v realnem času. Enostavno iskanje postaj in prikazovanje prihodov avtobusov LPP.')">
+    <meta property="og:image" content="{{ url('/og-image.png') }}">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ url()->current() }}">
+    <meta property="twitter:title" content="@yield('title', 'Trola.si - Naslednji prihodi Ljubljanskih avtobusov')">
+    <meta property="twitter:description"
+        content="@yield('description', 'Preverite naslednje prihode Ljubljanskih avtobusov v realnem času. Enostavno iskanje postaj in prikazovanje prihodov avtobusov LPP.')">
+    <meta property="twitter:image" content="{{ url('/og-image.png') }}">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ url()->current() }}">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+        {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Trola.si",
+        "url": "{{ url('/') }}",
+        "description": "Preverite naslednje prihode Ljubljanskih avtobusov v realnem času.",
+        "applicationCategory": "TransportationApplication",
+        "operatingSystem": "Any",
+        "author": {
+            "@type": "Person",
+            "name": "Rok Andrée",
+            "url": "https://andree.si"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "IP21",
+            "url": "https://ip21.si",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://ip21.si/ip21_full.png"
+            }
+        }
+    }
+    </script>
+
+    @stack('head')
 
     <style>
         /* Critical CSS */

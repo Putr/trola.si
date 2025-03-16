@@ -1,5 +1,26 @@
 @extends('layout')
 
+@section('title', $station->name . ' - Prihodi avtobusov | Trola.si')
+
+@section('description', 'Preverite naslednje prihode avtobusov na postaji ' . $station->name . ' v Ljubljani. Realni
+časi prihodov avtobusov LPP.')
+
+@push('head')
+<!-- Station Specific Structured Data -->
+<script type="application/ld+json">
+    {
+    "@context": "https://schema.org",
+    "@type": "BusStation",
+    "name": "{{ $station->name }}",
+    "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Ljubljana",
+        "addressCountry": "SI"
+    }
+}
+</script>
+@endpush
+
 @section('content')
 <div class="container mx-auto">
     <div class="">

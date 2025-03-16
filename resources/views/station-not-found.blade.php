@@ -1,5 +1,10 @@
 @extends('layout')
 
+@section('title', 'Postaja ni najdena | Trola.si')
+
+@section('description', 'Iskana avtobusna postaja ni bila najdena. Poskusite z drugim iskalnim nizom ali preverite
+seznam vseh postaj.')
+
 @section('content')
 <div class="container mx-auto px-4 py-8">
     <div class="bg-white shadow-md rounded p-6">

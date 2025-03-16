@@ -1,5 +1,10 @@
 @extends('layout')
 
+@section('title', 'Iskanje postaj ' . ($query ? '"' . $query . '"' : '') . ' | Trola.si')
+
+@section('description', 'Poiščite avtobusne postaje v Ljubljani. Enostavno iskanje in prikaz realnih časov prihodov
+avtobusov LPP.')
+
 @section('content')
 <div class="container mx-auto">
     <div class="">
