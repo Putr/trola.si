@@ -30,9 +30,9 @@ class Station extends Model
         return $this->belongsTo(Station::class, 'opposite_station_id');
     }
 
-    public function getOppositeStationCodeAttribute(): int
+    public function getOppositeStationCodeAttribute(): int|null
     {
-        return $this->oppositeStation->code;
+        return $this->oppositeStation?->code;
     }
 
     public function getArrivalsAttribute(): array

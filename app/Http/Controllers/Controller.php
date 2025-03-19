@@ -66,13 +66,34 @@ class Controller extends BaseController
 
         $this->trackPageView('station_' . $stopId);
 
+        // Check if opposite station code exists
+        $oppositeCode = $station->oppositeStationCode;
+        $hasOppositeStation = !is_null($oppositeCode);
+
+        // Determine which links should be available
+        $toHref = null;
+        $fromHref = null;
+
+        if ($hasOppositeStation) {
+            $toHref = '/' . ($station->is_direction_to_center ? $station->code : $oppositeCode);
+            $fromHref = '/' . ($station->is_direction_to_center ? $oppositeCode : $station->code);
+        } else {
+            // If no opposite station, only enable the current direction button
+            if ($station->is_direction_to_center) {
+                $toHref = '/' . $station->code;
+            } else {
+                $fromHref = '/' . $station->code;
+            }
+        }
+
+
         return view('station', [
             'station' => $station,
             'arrivals' => $station->arrivals,
             'directionToCenter' => $station->is_direction_to_center,
             'hrefs' => [
-                'to' => '/' . ($station->is_direction_to_center ? $station->code : $station->oppositeStationCode),
-                'from' => '/' . ($station->is_direction_to_center ? $station->oppositeStationCode : $station->code),
+                'to' => $toHref,
+                'from' => $fromHref,
                 'all' => '/' . $station->code . '/all'
             ]
         ]);
@@ -83,20 +104,49 @@ class Controller extends BaseController
         $this->trackPageView('station_' . $stopId . '_all');
 
         $station = Station::where('code', $stopId)->first();
-        $oppositeStation = Station::where('code', $station->oppositeStationCode)->first();
 
-        $arrivals = collect(array_merge($station->arrivals, $oppositeStation->arrivals))
-            ->sortBy('route_name_numeric')
-            ->values()
-            ->all();
+        if (!$station) {
+            return view('station-not-found');
+        }
+
+        $arrivals = $station->arrivals;
+        $oppositeCode = $station->oppositeStationCode;
+        $hasOppositeStation = !is_null($oppositeCode);
+
+        // Only fetch and merge opposite station arrivals if oppositeStationCode exists
+        if ($hasOppositeStation) {
+            $oppositeStation = Station::where('code', $oppositeCode)->first();
+            if ($oppositeStation) {
+                $arrivals = collect(array_merge($station->arrivals, $oppositeStation->arrivals))
+                    ->sortBy('route_name_numeric')
+                    ->values()
+                    ->all();
+            }
+        }
+
+        // Determine which links should be available
+        $toHref = null;
+        $fromHref = null;
+
+        if ($hasOppositeStation) {
+            $toHref = '/' . ($station->is_direction_to_center ? $station->code : $oppositeCode);
+            $fromHref = '/' . ($station->is_direction_to_center ? $oppositeCode : $station->code);
+        } else {
+            // If no opposite station, only enable the current direction button
+            if ($station->is_direction_to_center) {
+                $toHref = '/' . $station->code;
+            } else {
+                $fromHref = '/' . $station->code;
+            }
+        }
 
         return view('station', [
             'station' => $station,
             'arrivals' => $arrivals,
             'directionToCenter' => null,
             'hrefs' => [
-                'to' => '/' . ($station->is_direction_to_center ? $station->code : $oppositeStation->code),
-                'from' => '/' . ($station->is_direction_to_center ? $oppositeStation->code : $station->code),
+                'to' => $toHref,
+                'from' => $fromHref,
                 'all' => '/' . $station->code . '/all'
             ]
         ]);
