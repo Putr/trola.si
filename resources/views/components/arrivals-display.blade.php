@@ -2,7 +2,7 @@
 
 <div class="mx-auto">
     @if(count($arrivals) > 0)
-    <div class="flex justify-center text-gray-200 pb-2 md:pb-4 min-w-full">
+    <div class="flex justify-center text-gray-300 pb-2 md:pb-4 min-w-full">
         <div class="w-1/3 md:w-1/2 pr-2 md:pr-4">
             <h2 class="hidden sm:block text-2xl font-black text-right">AVTOBUSNE LINIJE</h2>
         </div>

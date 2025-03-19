@@ -40,12 +40,8 @@ class Controller extends BaseController
     {
         $this->trackPageView('home');
 
-        $stations = Station::limit(20)
-            ->orderBy('name')
-            ->get();
-
         return view('search', [
-            'stations' => $stations,
+            'stations' => Station::limit(0)->get(),
             'query' => '',
             'direction' => 'all',
             'directionToCenter' => null,
@@ -54,7 +50,8 @@ class Controller extends BaseController
                 'from' => '/search?direction=from',
                 'all' => '/search?direction=all'
             ],
-            'useLocation' => true
+            'useLocation' => true,
+            'lookingForLocation' => true
         ]);
     }
 
@@ -150,7 +147,8 @@ class Controller extends BaseController
                 'to' => '/search?q=' . $query . '&direction=to',
                 'from' => '/search?q=' . $query . '&direction=from',
                 'all' => '/search?q=' . $query . '&direction=all'
-            ]
+            ],
+            'locationFailed' => $request->has('locationFailed')
         ]);
     }
 
@@ -174,11 +172,11 @@ class Controller extends BaseController
                 'direction' => 'all',
                 'directionToCenter' => null,
                 'hrefs' => [
-                    'to' => "/geosearch?lat={$latitude}&long={$longitude}&direction=to",
-                    'from' => "/geosearch?lat={$latitude}&long={$longitude}&direction=from",
-                    'all' => "/geosearch?lat={$latitude}&long={$longitude}&direction=all"
+                    'to' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=to",
+                    'from' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=from",
+                    'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all"
                 ],
-                'useLocation' => false,
+                'useLocation' => true,
                 'error' => 'V bližini ni najdenih postaj.'
             ]);
         }
@@ -210,11 +208,11 @@ class Controller extends BaseController
             'direction' => 'all',
             'directionToCenter' => null,
             'hrefs' => [
-                'to' => "/geosearch?lat={$latitude}&long={$longitude}&direction=to",
-                'from' => "/geosearch?lat={$latitude}&long={$longitude}&direction=from",
-                'all' => "/geosearch?lat={$latitude}&long={$longitude}&direction=all"
+                'to' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=to",
+                'from' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=from",
+                'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all"
             ],
-            'useLocation' => false
+            'useLocation' => true
         ]);
     }
 }
