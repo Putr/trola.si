@@ -167,16 +167,28 @@ class Controller extends BaseController
             $stations = $stations->limit(10)->get();
         } else {
             $stations = Station::where(function ($q) use ($query) {
-                $q->whereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query . '*'])
-                    ->orWhere('name', 'LIKE', '%' . $query . '%')
-                    ->orWhere('code', 'LIKE', $query . '%');
-            });
+                $q->where('name', $query) // Exact match
+                    ->orWhere('code', 'LIKE', $query . '%') // Code match
+                    ->orWhere('name', 'LIKE', $query . '%') // Exact start match
+                    ->orWhereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query . '*']) // Full-text match
+                    ->orWhere('name', 'LIKE', '%' . $query . '%'); // Partial match
+            })
+                ->orderByRaw("
+                CASE
+                    WHEN name = ? THEN 1
+                    WHEN code LIKE ? THEN 2
+                    WHEN name LIKE ? THEN 3
+                    WHEN MATCH(name) AGAINST(? IN BOOLEAN MODE) THEN 4
+                    WHEN name LIKE ? THEN 5
+                    ELSE 6
+                END", [$query, $query . '%', $query . '%', $query . '*', '%' . $query . '%']);
+
 
             if ($direction !== 'all') {
                 $stations->where('is_direction_to_center', $direction === 'to');
             }
 
-            $stations = $stations->limit(10)->get();
+            $stations = $stations->get();
 
             if ($stations->count() === 1) {
                 $station = $stations->first();
