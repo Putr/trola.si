@@ -188,7 +188,7 @@ class Controller extends BaseController
                 $stations->where('is_direction_to_center', $direction === 'to');
             }
 
-            $stations = $stations->get();
+            $stations = $stations->limit(10)->get();
 
             if ($stations->count() === 1) {
                 $station = $stations->first();
