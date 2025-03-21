@@ -23,5 +23,10 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('db:seed')->dailyAt('04:00');
         $schedule->command('sitemap:generate')->dailyAt('04:30');
+        // Run station cache warming at 3 AM every day
+        $schedule->command('stations:warm-cache')
+            ->dailyAt('03:00')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 }

@@ -4,18 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\Station;
 use App\Services\LppApiService;
+use App\Traits\CachesStations;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\View;
 
 class Controller extends BaseController
 {
-    use AuthorizesRequests, ValidatesRequests;
+    use AuthorizesRequests, ValidatesRequests, CachesStations;
 
     private LppApiService $lppApiService;
 
@@ -41,7 +43,7 @@ class Controller extends BaseController
         $this->trackPageView('home');
 
         return view('search', [
-            'stations' => Station::limit(0)->get(),
+            'stations' => collect([]),
             'query' => '',
             'direction' => 'all',
             'directionToCenter' => null,
@@ -57,7 +59,8 @@ class Controller extends BaseController
 
     public function show(string $stopId)
     {
-        $station = Station::where('code', $stopId)->first();
+        // Try to get station from cache first
+        $station = $this->getStationFromCache($stopId);
 
         if (!$station) {
             $this->trackPageView('not_found');
@@ -66,8 +69,15 @@ class Controller extends BaseController
 
         $this->trackPageView('station_' . $stopId);
 
-        // Check if opposite station code exists
-        $oppositeCode = $station->oppositeStationCode;
+        // Try to get arrivals from cache
+        $arrivals = $this->getStationArrivalsFromCache($station);
+
+        // Get opposite station code if it exists
+        $oppositeCode = null;
+        if ($station->opposite_station_id) {
+            $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
+            $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
+        }
         $hasOppositeStation = !is_null($oppositeCode);
 
         // Determine which links should be available
@@ -86,10 +96,9 @@ class Controller extends BaseController
             }
         }
 
-
         return view('station', [
             'station' => $station,
-            'arrivals' => $station->arrivals,
+            'arrivals' => $arrivals,
             'directionToCenter' => $station->is_direction_to_center,
             'hrefs' => [
                 'to' => $toHref,
@@ -103,25 +112,33 @@ class Controller extends BaseController
     {
         $this->trackPageView('station_' . $stopId . '_all');
 
-        $station = Station::where('code', $stopId)->first();
+        // Try to get station from cache first
+        $station = $this->getStationFromCache($stopId);
 
         if (!$station) {
             return view('station-not-found');
         }
 
-        $arrivals = $station->arrivals;
-        $oppositeCode = $station->oppositeStationCode;
+        // Try to get arrivals from cache
+        $arrivals = $this->getStationArrivalsFromCache($station);
+
+        // Get opposite station code if it exists
+        $oppositeCode = null;
+        if ($station->opposite_station_id) {
+            $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
+            $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
+        }
         $hasOppositeStation = !is_null($oppositeCode);
 
         // Only fetch and merge opposite station arrivals if oppositeStationCode exists
         if ($hasOppositeStation) {
-            $oppositeStation = Station::where('code', $oppositeCode)->first();
-            if ($oppositeStation) {
-                $arrivals = collect(array_merge($station->arrivals, $oppositeStation->arrivals))
-                    ->sortBy('route_name_numeric')
-                    ->values()
-                    ->all();
-            }
+            // Try to get opposite station arrivals from cache
+            $oppositeArrivals = $this->getStationArrivalsFromCache($oppositeStation);
+
+            $arrivals = collect(array_merge($arrivals, $oppositeArrivals))
+                ->sortBy('route_name_numeric')
+                ->values()
+                ->all();
         }
 
         // Determine which links should be available

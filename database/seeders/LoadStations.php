@@ -4,12 +4,14 @@ namespace Database\Seeders;
 
 use App\Models\Station;
 use App\Services\LppApiService;
+use App\Traits\CachesStations;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Console\Command;
 
 class LoadStations extends Seeder
 {
+    use CachesStations;
 
     public function __construct(
         private readonly LppApiService $api
@@ -65,6 +67,9 @@ class LoadStations extends Seeder
                     'is_direction_to_center' => null,
                 ]
             );
+
+            // Invalidate station cache
+            $this->invalidateStationCache($stationData['ref_id']);
         }
     }
 
