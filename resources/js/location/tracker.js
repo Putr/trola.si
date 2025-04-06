@@ -9,6 +9,14 @@ export class LocationTracker {
         this.locationService = new LocationService(this.ui);
         this.interval = null;
         this._setupVisibilityHandler();
+        this._setupRetryHandler();
+    }
+
+    _setupRetryHandler() {
+        this.ui.setRetryHandler(() => {
+            this.ui.showLoading();
+            this._requestInitialLocation();
+        });
     }
 
     start() {
@@ -52,6 +60,20 @@ export class LocationTracker {
             }
         } catch (error) {
             console.error('Error getting initial location:', error);
+            this.ui.showError(this._getErrorMessage(error));
+        }
+    }
+
+    _getErrorMessage(error) {
+        switch (error.code) {
+            case error.PERMISSION_DENIED:
+                return 'Dostop do lokacije je bil zavrnjen. Omogočite dostop v nastavitvah brskalnika.';
+            case error.POSITION_UNAVAILABLE:
+                return 'Podatki o lokaciji niso na voljo.';
+            case error.TIMEOUT:
+                return 'Zahteva za lokacijo je potekla. Poskusite znova.';
+            default:
+                return 'Prišlo je do neznane napake.';
         }
     }
 
@@ -75,6 +97,7 @@ export class LocationTracker {
             }
         } catch (error) {
             console.error('Error checking location change:', error);
+            this.ui.showError(this._getErrorMessage(error));
         }
     }
 

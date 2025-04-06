@@ -21,6 +21,9 @@
         </svg>
         <p class="text-lg font-medium mt-4" id="location-error-message">Ne moremo pridobiti vaše lokacije</p>
         <p class="text-sm text-gray-600 mt-2">Poskusite poiskati postajo ročno</p>
+        <button id="retry-location" class="mt-4 px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+            Poskusi znova
+        </button>
     </div>
 
     @vite(['resources/js/app.js'])

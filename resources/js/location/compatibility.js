@@ -12,11 +12,11 @@ export class LocationCompatibility {
     }
 
     static getLocationOptions() {
-        // Adjust options based on environment
+        const isWebView = this.isWebView();
         return {
-            timeout: CONFIG.INTERVALS.LOCATION_TIMEOUT,
-            maximumAge: this.isWebView() ? 0 : CONFIG.INTERVALS.LOCATION_MAX_AGE,
-            enableHighAccuracy: this.isWebView()
+            timeout: isWebView ? 10000 : CONFIG.INTERVALS.LOCATION_TIMEOUT, // shorter timeout for WebView
+            maximumAge: isWebView ? 0 : CONFIG.INTERVALS.LOCATION_MAX_AGE,
+            enableHighAccuracy: isWebView
         };
     }
 

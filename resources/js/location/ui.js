@@ -3,8 +3,15 @@ export class LocationUI {
         this.elements = {
             loading: document.getElementById('location-loading'),
             error: document.getElementById('location-error'),
-            errorMessage: document.getElementById('location-error-message')
+            errorMessage: document.getElementById('location-error-message'),
+            retryButton: document.getElementById('retry-location')
         };
+
+        if (this.elements.retryButton) {
+            this.elements.retryButton.addEventListener('click', () => {
+                this.onRetry && this.onRetry();
+            });
+        }
     }
 
     showLoading() {
@@ -35,5 +42,9 @@ export class LocationUI {
         if (this.elements.error) {
             this.elements.error.classList.add('hidden');
         }
+    }
+
+    setRetryHandler(handler) {
+        this.onRetry = handler;
     }
 }
