@@ -294,4 +294,10 @@ class Controller extends BaseController
             'useLocation' => true
         ]);
     }
+
+    public function help()
+    {
+        $this->trackPageView('help');
+        return view('help');
+    }
 }

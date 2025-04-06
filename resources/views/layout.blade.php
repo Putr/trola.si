@@ -105,6 +105,16 @@
                         <p class="text-gray-600 max-w-56">Naslednji prihodi Ljubljanskih avtobusov</p>
                     </div>
                 </a>
+                @if(!request()->is('navodila'))
+                <a href="{{ route('help') }}" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
+                    title="Navodila za uporabo">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </a>
+                @endif
             </div>
         </div>
     </header>
@@ -118,7 +128,8 @@
             Andrée</a> (<a href="https://ip21.si" target="_blank" class="underline hover:no-underline">IP21</a>). <span
             class="hidden sm:inline">|</span><br class="sm:hidden"> Vir podatkov: <a href="https://www.lpp.si/"
             target="_blank" rel="nofollow" class="underline hover:no-underline">LPP</a> | <a
-            href="https://github.com/Putr/trola.si" target="_blank" class="underline hover:no-underline">Github</a>
+            href="https://github.com/Putr/trola.si" target="_blank" class="underline hover:no-underline">Github</a> | <a
+            href="{{ route('help') }}" class="underline hover:no-underline">Navodila za uporabo</a>
     </footer>
 
     @vite('resources/js/app.js')

@@ -12,6 +12,7 @@ Route::get('/geosearch', [Controller::class, 'geosearch'])->name('geosearch');
 
 Route::get('/stats', [StatsController::class, 'index']);
 
+Route::get('/navodila', [Controller::class, 'help'])->name('help');
 
 // Catchall routes, so should always be last
 Route::get('/{code}/all', [Controller::class, 'showBothDirections'])->name('station.both-directions');
