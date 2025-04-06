@@ -51,7 +51,7 @@ avtobusov LPP.')
         <p class="text-center text-gray-600">
             @if(isset($error))
             {{ $error }}
-            @else
+            @elseif (!$useLocation)
             Ni najdenih postaj.
             @endif
         </p>
