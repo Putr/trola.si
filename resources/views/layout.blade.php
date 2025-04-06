@@ -96,18 +96,19 @@
 
 <body class="bg-white flex flex-col min-h-full">
     <header class="">
-        <div class="mx-auto px-4 pt-12 pb-6 md:pt-12 md:pb-8">
+        <div class="mx-auto px-4 py-6 md:py-8">
             <div class="flex justify-center">
                 <a href="/" class="flex items-center gap-4 hover:opacity-80 transition-opacity">
-                    <img src="/imgs/bus.svg" alt="Bus icon" class="w-8 h-8">
+                    <img src="/imgs/bus.svg" alt="Bus icon" class="w-10 h-10 md:w-12 md:h-12">
                     <div>
-                        <h1 class="text-2xl font-bold">Trola.si</h1>
-                        <p class="text-gray-600 max-w-56">Naslednji prihodi Ljubljanskih avtobusov</p>
+                        <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Trola.si</h1>
+                        <p class="text-gray-600 text-sm md:text-base max-w-56">Naslednji prihodi Ljubljanskih avtobusov
+                        </p>
                     </div>
                 </a>
                 @if(!request()->is('navodila'))
-                <a href="{{ route('help') }}" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
-                    title="Navodila za uporabo">
+                <a href="{{ route('help') }}"
+                    class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
