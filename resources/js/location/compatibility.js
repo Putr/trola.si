@@ -5,18 +5,11 @@ export class LocationCompatibility {
         return 'geolocation' in navigator;
     }
 
-    static isWebView() {
-        // Detection for Android WebView
-        return /wv/.test(navigator.userAgent) ||
-            /Android.*Version\/[0-9]/.test(navigator.userAgent);
-    }
-
     static getLocationOptions() {
-        const isWebView = this.isWebView();
         return {
-            timeout: isWebView ? 10000 : CONFIG.INTERVALS.LOCATION_TIMEOUT, // shorter timeout for WebView
-            maximumAge: isWebView ? 0 : CONFIG.INTERVALS.LOCATION_MAX_AGE,
-            enableHighAccuracy: isWebView
+            timeout: 30000, // 30 seconds timeout
+            maximumAge: 0,  // Always get fresh location
+            enableHighAccuracy: false // Always use low accuracy mode
         };
     }
 

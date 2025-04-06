@@ -1,7 +1,7 @@
 export const CONFIG = {
     INTERVALS: {
         LOCATION_REFRESH: 3 * 60 * 1000, // 3 minutes
-        LOCATION_TIMEOUT: 10000, // 10 seconds
+        LOCATION_TIMEOUT: 2 * 60 * 1000, // 2 minutes
         LOCATION_MAX_AGE: 300000 // 5 minutes
     },
     THRESHOLDS: {
