@@ -85,6 +85,7 @@
         }
     </style>
     @vite('resources/css/app.css')
+    @stack('styles')
     <script>
         // Remove no-fouc class when CSS is loaded
         document.documentElement.classList.add('no-fouc');
@@ -124,6 +125,8 @@
         @yield('content')
     </main>
 
+    @include('components.report-error-button')
+
     <footer class="text-center py-4 text-sm text-gray-500">
         Razvil in vzdržuje <a href="https://andree.si" target="_blank" class="underline hover:no-underline">Rok
             Andrée</a> (<a href="https://ip21.si" target="_blank" class="underline hover:no-underline">IP21</a>). <span
@@ -134,6 +137,7 @@
     </footer>
 
     @vite('resources/js/app.js')
+    @stack('scripts')
 </body>
 
 </html>
