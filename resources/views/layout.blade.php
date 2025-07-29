@@ -125,7 +125,7 @@
         @yield('content')
     </main>
 
-    @include('components.report-error-button')
+    @include('components.footer-buttons')
 
     <footer class="text-center py-4 text-sm text-gray-500">
         Razvil in vzdržuje <a href="https://andree.si" target="_blank" class="underline hover:no-underline">Rok
