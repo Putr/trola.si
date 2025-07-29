@@ -1,6 +1,6 @@
 @php
     $userAgent = request()->header('User-Agent');
-    $isAndroidWebView = str_contains($userAgent, 'wv') || str_contains($userAgent, 'Android') && str_contains($userAgent, 'Mobile');
+    $isAndroidWebView = str_contains($userAgent, 'wv');
 @endphp
 
 <div class="text-center py-4 px-4 flex flex-row gap-4 justify-center items-center">
