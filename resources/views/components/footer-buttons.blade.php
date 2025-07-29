@@ -14,7 +14,7 @@
 
        Naloži aplikacijo
     </a>
-    @endif
+
 
     <a href="mailto:info@ip21.si?subject=Napaka {{ request()->path() }} "
        class="{{ $isAndroidWebView ? 'flex-1' : '' }} max-w-xs inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-green-600 border border-green-600 px-6 py-3 rounded-lg text-sm font-medium transition-colors duration-150">
@@ -25,5 +25,6 @@
 
        Sporoči napako
     </a>
+    @endif
 </div>
 
