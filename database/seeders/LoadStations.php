@@ -89,7 +89,7 @@ class LoadStations extends Seeder
 
             if ($opposite) {
                 $this->linkStations($station, $opposite);
-                $this->info("Name matched: {$station->name} ({$station->id} ↔ {$opposite->name} {$opposite->id})");
+                $this->info("Name matched: {$station->name} ({$station->code} ↔ {$opposite->name} {$opposite->code})");
             }
         }
     }
@@ -203,8 +203,17 @@ class LoadStations extends Seeder
 
     private function linkStations(Station $station, Station $opposite): void
     {
-        // Determine direction based on ID (lower = closer to center)
-        $isToCenter = $station->id < $opposite->id;
+        // Determine direction:
+        // Primary rule: station whose ID ends with "1" is toward center
+        // Fallback rule: if both/neither end with "1", lower ID is toward center
+        $stationEndsWithOne = substr((string)$station->code, -1) === '1';
+        $oppositeEndsWithOne = substr((string)$opposite->code, -1) === '1';
+
+        if ($stationEndsWithOne !== $oppositeEndsWithOne) {
+            $isToCenter = $stationEndsWithOne;
+        } else {
+            $isToCenter = $station->code < $opposite->code;
+        }
 
         // Update current station
         $station->update([

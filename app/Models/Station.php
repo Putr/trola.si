@@ -6,7 +6,21 @@ use App\Services\LppApiService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * @property int $id
+ * @property string|null $code
+ * @property string $name
+ * @property array $routes
+ * @property int|null $opposite_station_id
+ * @property bool|null $is_direction_to_center
+ *
+ * @method static Station|Builder updateOrCreate(array $attributes, array $values = [])
+ * @method static Collection|Station[] all($columns = ['*'])
+ * @method static Builder where(string $column, mixed $operator = null, mixed $value = null)
+ * @method static Builder whereNull(string $column)
+ */
 class Station extends Model
 {
     protected $fillable = [
