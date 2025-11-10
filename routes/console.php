@@ -22,6 +22,6 @@ Schedule::command('stats:aggregate')
 
 // Update today's stats every hour to keep trend data current
 Schedule::command('stats:aggregate --today-only')
-    ->everyHour()
+    ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
