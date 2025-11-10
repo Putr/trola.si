@@ -2,7 +2,6 @@
 
 namespace App\Console;
 
-use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
@@ -10,23 +9,24 @@ class Kernel extends ConsoleKernel
     /**
      * The Artisan commands provided by your application.
      *
+     * In Laravel 11, commands are auto-discovered from app/Console/Commands,
+     * but you can still manually register commands here if needed.
+     *
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\GenerateSitemap::class,
+        // Commands are auto-discovered, but you can add custom registrations here if needed
     ];
 
     /**
-     * Define the application's command schedule.
+     * Register the commands for the application.
+     *
+     * In Laravel 11, scheduling is done in routes/console.php using the Schedule facade.
      */
-    protected function schedule(Schedule $schedule): void
+    protected function commands(): void
     {
-        $schedule->command('db:seed')->dailyAt('04:00');
-        $schedule->command('sitemap:generate')->dailyAt('04:30');
-        // Run station cache warming at 3 AM every day
-        $schedule->command('stations:warm-cache')
-            ->dailyAt('03:00')
-            ->withoutOverlapping()
-            ->runInBackground();
+        // Commands are auto-discovered from app/Console/Commands
+        // You can also load commands from a directory:
+        // $this->load(__DIR__.'/Commands');
     }
 }

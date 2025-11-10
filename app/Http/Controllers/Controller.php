@@ -4,14 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Station;
 use App\Services\LppApiService;
+use App\Services\StatsService;
 use App\Traits\CachesStations;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Request as RequestFacade;
 use Illuminate\Support\Facades\View;
 
@@ -20,22 +19,22 @@ class Controller extends BaseController
     use AuthorizesRequests, ValidatesRequests, CachesStations;
 
     private LppApiService $lppApiService;
+    private StatsService $statsService;
 
-    public function __construct(LppApiService $lppApiService)
+    public function __construct(LppApiService $lppApiService, StatsService $statsService)
     {
         $this->lppApiService = $lppApiService;
+        $this->statsService = $statsService;
     }
 
-    private function trackPageView(string $page)
+    private function trackPageView(string $page): void
     {
         // Skip if this is an auto-reload
         if (RequestFacade::cookie('autoreload')) {
             return;
         }
 
-        $date = Carbon::now()->format('Y_m_d');
-        $key = "stats_{$date}_{$page}";
-        Redis::incr($key);
+        $this->statsService->trackPageView($page);
     }
 
     public function index()

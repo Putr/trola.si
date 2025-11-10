@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+use App\Models\Station;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 class GenerateSitemap extends Command
@@ -27,13 +27,14 @@ class GenerateSitemap extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
         try {
             $this->info('Generating sitemap...');
 
             // Get all stations from the database
-            $stations = DB::table('stations')->select('code')->get();
+            // Note: XML sitemaps only include URLs, not page names (this is standard)
+            $stations = Station::whereNotNull('code')->orderBy('code')->get();
 
             // Start XML content
             $xml = '<?xml version="1.0" encoding="UTF-8"?>
@@ -57,7 +58,7 @@ class GenerateSitemap extends Command
     <url>
         <loc>https://trola.si/' . $station->code . '/all</loc>
         <lastmod>' . Carbon::now()->format('Y-m-d') . '</lastmod>
-        <changefreq>daily</changefreq>
+        <changefreq>weekly</changefreq>
         <priority>0.7</priority>
     </url>';
             }
@@ -67,12 +68,17 @@ class GenerateSitemap extends Command
 </urlset>';
 
             // Save the sitemap.xml file
-            File::put(\public_path('sitemap.xml'), $xml);
+            $sitemapPath = public_path('sitemap.xml');
+            File::put($sitemapPath, $xml);
 
             $this->info('Sitemap generated successfully with ' . $stations->count() . ' stations!');
+
+            return Command::SUCCESS;
         } catch (\Exception $e) {
             Log::error('Error generating sitemap: ' . $e->getMessage());
             $this->error('Error generating sitemap: ' . $e->getMessage());
+
+            return Command::FAILURE;
         }
     }
 }
