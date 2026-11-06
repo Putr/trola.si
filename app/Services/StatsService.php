@@ -2,937 +2,364 @@
 
 namespace App\Services;
 
+use App\Models\Station;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use Throwable;
 
+/**
+ * Anonymous page-view counters in Redis, and the aggregates shown on /stats.
+ *
+ * Key formats are frozen because production history lives in them:
+ *  - stats_{Y_m_d}_{page}      raw counter per page per day
+ *  - stats_agg_day_{Y_m_d}     JSON daily aggregate
+ *  - stats_avg_dow_{1-7}       JSON rolling average per ISO weekday
+ */
 class StatsService
 {
+    /** Pages counted on their own; station pages are summed separately. */
+    private const PAGES = ['home', 'search', 'geosearch'];
+
+    /** Pages listed (besides stations) in the popular pages ranking. */
+    private const RANKED_PAGES = ['home', 'search', 'geosearch', 'not_found'];
+
+    private const SCAN_BATCH = 500;
+
     /**
-     * Track a page view
-     *
-     * @param  string  $page  Page identifier (e.g., 'home', 'search', 'station_123')
+     * Count a page view. Never throws: a stats outage must not break the site.
      */
     public function trackPageView(string $page): void
     {
         try {
-            $date = Carbon::now()->format('Y_m_d');
-            $key = $this->buildKey($date, $page);
-            Redis::incr($key);
-        } catch (\Exception $e) {
-            Log::error('Failed to track page view: '.$e->getMessage(), [
-                'page' => $page,
-                'exception' => $e,
-            ]);
+            Redis::incr($this->buildKey(Carbon::now()->format('Y_m_d'), $page));
+        } catch (Throwable $e) {
+            Log::warning('Failed to track page view: '.$e->getMessage(), ['page' => $page]);
         }
     }
 
     /**
-     * Get daily stats for a specific date
+     * Raw totals for a day, used when no aggregate exists yet.
      *
-     * @param  string  $date  Date in Y_m_d format
+     * @param  string  $date  Y_m_d
+     * @return array{date: string, home: int, search: int, geosearch: int, stations: int, pct_from_avg: null, yoy: null}
      */
     public function getDailyStats(string $date): array
     {
-        try {
-            $homeViews = $this->getPageViews($date, 'home');
-            $searchViews = $this->getPageViews($date, 'search');
-            $geosearchViews = $this->getPageViews($date, 'geosearch');
-            $stationViews = $this->getStationViewsForDate($date);
-
-            return [
-                'date' => Carbon::createFromFormat('Y_m_d', $date)->format('Y-m-d'),
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-                'pct_from_avg' => null,
-                'yoy' => null,
-            ];
-        } catch (\Exception $e) {
-            Log::error('Failed to get daily stats: '.$e->getMessage(), [
-                'date' => $date,
-                'exception' => $e,
-            ]);
-
-            return [
-                'date' => Carbon::createFromFormat('Y_m_d', $date)->format('Y-m-d'),
-                'home' => 0,
-                'search' => 0,
-                'geosearch' => 0,
-                'stations' => 0,
-                'pct_from_avg' => null,
-                'yoy' => null,
-            ];
-        }
+        return [
+            'date' => Carbon::createFromFormat('Y_m_d', $date)->format('Y-m-d'),
+            ...$this->totalsForDate($date),
+            'pct_from_avg' => null,
+            'yoy' => null,
+        ];
     }
 
     /**
-     * Get popular pages from the last N days
+     * The most viewed pages over the last $days days, with week-over-week and
+     * year-over-year trends.
      *
-     * @param  int  $days  Number of days to look back (default: 7)
-     * @param  int  $limit  Number of top pages to return (default: 10)
+     * @return Collection<string, array{name: string, url: string, views: int, trends: array{wow?: array{type: string, diff: int, pct: float}, yoy?: array{type: string, diff: int, pct: float}}, change: array{type: string, diff: int, pct: float}|null}>
      */
     public function getPopularPages(int $days = 7, int $limit = 10): Collection
     {
-        $popularPages = collect();
-        $previousWeekPages = collect();
-        $stationMap = [];
+        $current = $this->pageViewsForPeriod($days, 0);
+        $previous = $this->pageViewsForPeriod($days, $days);
+        $stations = Station::query()->get(['code', 'name'])->keyBy('code');
 
-        try {
-            // Get all station data for lookup
-            $stations = \App\Models\Station::all()->keyBy('code');
+        return $current
+            ->sortDesc()
+            ->take($limit)
+            ->map(function (int $views, string $pageId) use ($previous, $stations, $days): array {
+                $trends = array_filter([
+                    'wow' => $this->trend('WoW', $views, $previous->get($pageId, 0)),
+                    'yoy' => $this->trend('YOY', $views, $this->pageViewsOnDays($pageId, $days, 365)),
+                ]);
 
-            // Get data for the specified number of days (current week)
-            for ($i = 0; $i < $days; $i++) {
-                $date = Carbon::now()->subDays($i)->format('Y_m_d');
-
-                // Process standard page views
-                $this->aggregatePageViews($popularPages, $date, 'home');
-                $this->aggregatePageViews($popularPages, $date, 'search');
-                $this->aggregatePageViews($popularPages, $date, 'geosearch');
-                $this->aggregatePageViews($popularPages, $date, 'not_found');
-
-                // Process station page views using SCAN
-                $this->aggregateStationViews($popularPages, $stationMap, $date);
-            }
-
-            // Get data for previous week (for comparison)
-            for ($i = $days; $i < $days * 2; $i++) {
-                $date = Carbon::now()->subDays($i)->format('Y_m_d');
-
-                // Process standard page views
-                $this->aggregatePageViews($previousWeekPages, $date, 'home');
-                $this->aggregatePageViews($previousWeekPages, $date, 'search');
-                $this->aggregatePageViews($previousWeekPages, $date, 'geosearch');
-                $this->aggregatePageViews($previousWeekPages, $date, 'not_found');
-
-                // Process station page views
-                $this->aggregateStationViews($previousWeekPages, $stationMap, $date);
-            }
-
-            // Sort by views (descending)
-            $popularPages = $popularPages->sort(function ($a, $b) {
-                return $b <=> $a;
+                return [
+                    ...$this->describePage($pageId, $stations),
+                    'views' => $views,
+                    'trends' => $trends,
+                    'change' => $trends['wow'] ?? null,
+                ];
             });
-
-            // Take top N and format for display with all available trend data
-            return $popularPages->take($limit)->map(function ($views, $pageId) use ($stations, $stationMap, $previousWeekPages, $days) {
-                $pageData = $this->formatPageForDisplay($pageId, $views, $stations, $stationMap);
-
-                $trends = [];
-
-                // Calculate week-over-week (WoW) change
-                $previousViews = $previousWeekPages->get($pageId, 0);
-                if ($previousViews > 0) {
-                    $diff = $views - $previousViews;
-                    $pct = round(($diff / $previousViews) * 100, 1);
-                    $trends['wow'] = [
-                        'type' => 'WoW',
-                        'diff' => $diff,
-                        'pct' => $pct,
-                    ];
-                } elseif ($views > 0 && $previousViews === 0) {
-                    // New page or increased from 0
-                    $trends['wow'] = [
-                        'type' => 'WoW',
-                        'diff' => $views,
-                        'pct' => 100.0,
-                    ];
-                }
-
-                // Calculate year-over-year (YOY) change
-                $yearAgoViews = $this->getPageViewsForPeriod($pageId, $days, 365);
-                if ($yearAgoViews > 0) {
-                    $diff = $views - $yearAgoViews;
-                    $pct = round(($diff / $yearAgoViews) * 100, 1);
-                    $trends['yoy'] = [
-                        'type' => 'YOY',
-                        'diff' => $diff,
-                        'pct' => $pct,
-                    ];
-                } elseif ($views > 0 && $yearAgoViews === 0) {
-                    $trends['yoy'] = [
-                        'type' => 'YOY',
-                        'diff' => $views,
-                        'pct' => 100.0,
-                    ];
-                }
-
-                $pageData['trends'] = $trends;
-                // Keep 'change' for backward compatibility (WoW)
-                $pageData['change'] = $trends['wow'] ?? null;
-
-                return $pageData;
-            });
-        } catch (\Exception $e) {
-            Log::error('Failed to get popular pages: '.$e->getMessage(), [
-                'days' => $days,
-                'limit' => $limit,
-                'exception' => $e,
-            ]);
-
-            return collect([]);
-        }
     }
 
     /**
-     * Get total station views for a specific date
+     * Total station page views on a day (both single- and both-direction pages).
      *
-     * @param  string  $date  Date in Y_m_d format
+     * @param  string  $date  Y_m_d
      */
     public function getStationViewsForDate(string $date): int
     {
-        try {
-            $totalViews = 0;
-            $pattern = $this->buildKey($date, 'station_*');
-
-            // Use KEYS (original approach - faster for this use case)
-            $stationKeys = Redis::keys($pattern);
-
-            foreach ($stationKeys as $key) {
-                // Remove prefix if present (Laravel Redis returns keys with prefix)
-                $cleanKey = $this->removePrefix($key);
-                $views = (int) Redis::get($cleanKey);
-                $totalViews += $views;
-            }
-
-            return $totalViews;
-        } catch (\Exception $e) {
-            Log::error('Failed to get station views for date: '.$e->getMessage(), [
-                'date' => $date,
-                'exception' => $e,
-            ]);
-
-            return 0;
-        }
+        return array_sum($this->stationViewsForDate($date));
     }
 
     /**
-     * Get total page views for a specific page over a period starting N days ago
+     * Build and store the aggregate for a day.
      *
-     * @param  string  $pageId  Page identifier
-     * @param  int  $days  Number of days in the period
-     * @param  int  $daysAgo  How many days ago to start the period
-     */
-    private function getPageViewsForPeriod(string $pageId, int $days, int $daysAgo): int
-    {
-        $totalViews = 0;
-        for ($i = 0; $i < $days; $i++) {
-            $date = Carbon::now()->subDays($daysAgo + $i)->format('Y_m_d');
-            $totalViews += $this->getPageViews($date, $pageId);
-        }
-
-        return $totalViews;
-    }
-
-    /**
-     * Get page views for a specific page on a specific date
-     *
-     * @param  string  $date  Date in Y_m_d format
-     * @param  string  $page  Page identifier
-     */
-    private function getPageViews(string $date, string $page): int
-    {
-        try {
-            $key = $this->buildKey($date, $page);
-            $value = Redis::get($key);
-
-            return $value ? (int) $value : 0;
-        } catch (\Exception $e) {
-            Log::error('Failed to get page views: '.$e->getMessage(), [
-                'date' => $date,
-                'page' => $page,
-                'exception' => $e,
-            ]);
-
-            return 0;
-        }
-    }
-
-    /**
-     * Aggregate page views for a specific page type
-     */
-    private function aggregatePageViews(Collection $popularPages, string $date, string $page): void
-    {
-        $views = $this->getPageViews($date, $page);
-        if ($views > 0) {
-            $popularPages->put($page, ($popularPages->get($page, 0) + $views));
-        }
-    }
-
-    /**
-     * Aggregate station views for a specific date using SCAN
-     */
-    private function aggregateStationViews(Collection $popularPages, array &$stationMap, string $date): void
-    {
-        try {
-            $pattern = $this->buildKey($date, 'station_*');
-
-            // Use KEYS (original approach - faster for this use case)
-            $stationKeys = Redis::keys($pattern);
-
-            foreach ($stationKeys as $redisKey) {
-                // Remove prefix if present
-                $key = $this->removePrefix($redisKey);
-                $views = (int) Redis::get($key);
-
-                if ($views <= 0) {
-                    continue;
-                }
-
-                // Use regex to extract station code and check if it's a "both directions" view
-                if (preg_match('/^stats_[0-9_]+_station_([0-9]+)(?:_all)?$/', $key, $matches)) {
-                    $stationCode = $matches[1];
-                    $isBothDirections = strpos($key, '_all') !== false;
-
-                    // Create a unique page ID for this station view
-                    $pageId = 'station_'.$stationCode.($isBothDirections ? '_all' : '');
-
-                    // Add to the collection
-                    $popularPages->put($pageId, ($popularPages->get($pageId, 0) + $views));
-
-                    // Store station code for later lookup
-                    $stationMap[$pageId] = $stationCode;
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Failed to aggregate station views: '.$e->getMessage(), [
-                'date' => $date,
-                'exception' => $e,
-            ]);
-        }
-    }
-
-    /**
-     * Format page data for display
-     */
-    private function formatPageForDisplay(string $pageId, int $views, Collection $stations, array $stationMap): array
-    {
-        $name = $pageId;
-        $url = '/';
-
-        // Format page name and URL
-        if ($pageId === 'home') {
-            $name = 'Home Page';
-            $url = '/';
-        } elseif ($pageId === 'search') {
-            $name = 'Search Page';
-            $url = '/search';
-        } elseif ($pageId === 'geosearch') {
-            $name = 'Geolocation Search';
-            $url = '/geosearch';
-        } elseif ($pageId === 'not_found') {
-            $name = 'Not Found Page';
-            $url = '/not-found';
-        } elseif (strpos($pageId, 'station_') === 0) {
-            $stationCode = $stationMap[$pageId] ?? '';
-            $isBothDirections = strpos($pageId, '_all') !== false;
-
-            if (! empty($stationCode) && isset($stations[$stationCode])) {
-                $name = 'Station: '.$stations[$stationCode]->name;
-                if ($isBothDirections) {
-                    $name .= ' (Both Directions)';
-                    $url = '/'.$stationCode.'/all';
-                } else {
-                    $url = '/'.$stationCode;
-                }
-            } else {
-                $name = 'Station: '.$stationCode;
-                if ($isBothDirections) {
-                    $name .= ' (Both Directions)';
-                    $url = '/'.$stationCode.'/all';
-                } else {
-                    $url = '/'.$stationCode;
-                }
-            }
-        }
-
-        return [
-            'name' => $name,
-            'views' => $views,
-            'url' => $url,
-        ];
-    }
-
-    /**
-     * Aggregate and cache daily stats for a specific date
-     *
-     * @param  string  $date  Date in Y_m_d format
+     * @param  string  $date  Y_m_d
+     * @return array<string, mixed>
      */
     public function aggregateDay(string $date, bool $forceRecalculate = false): array
     {
-        try {
-            // Check if already cached (unless forcing recalculation)
-            if (! $forceRecalculate) {
-                $cached = $this->getAggregatedDay($date);
-                if ($cached !== null) {
-                    return $cached;
-                }
-            }
-
-            // Get basic stats
-            $homeViews = $this->getPageViews($date, 'home');
-            $searchViews = $this->getPageViews($date, 'search');
-            $geosearchViews = $this->getPageViews($date, 'geosearch');
-            $stationViews = $this->getStationViewsForDate($date);
-
-            $carbonDate = Carbon::createFromFormat('Y_m_d', $date);
-            $dayOfWeek = $carbonDate->dayOfWeekIso; // 1 (Monday) to 7 (Sunday)
-
-            // Get rolling average for this day of week
-            $rollingAvg = $this->getRollingAverageForDayOfWeek($dayOfWeek);
-
-            // Calculate difference and percentage from rolling average
-            $diffFromAvg = [];
-            $pctFromAvg = [];
-            if ($rollingAvg) {
-                $rollingHome = $rollingAvg['home'] ?? 0;
-                $rollingSearch = $rollingAvg['search'] ?? 0;
-                $rollingGeosearch = $rollingAvg['geosearch'] ?? 0;
-                $rollingStations = $rollingAvg['stations'] ?? 0;
-
-                $diffFromAvg = [
-                    'home' => $homeViews - $rollingHome,
-                    'search' => $searchViews - $rollingSearch,
-                    'geosearch' => $geosearchViews - $rollingGeosearch,
-                    'stations' => $stationViews - $rollingStations,
-                ];
-
-                // Calculate percentage from rolling average
-                $pctFromAvg = [
-                    'home' => $rollingHome > 0 ? round((($homeViews - $rollingHome) / $rollingHome) * 100, 1) : ($homeViews > 0 ? 100.0 : 0.0),
-                    'search' => $rollingSearch > 0 ? round((($searchViews - $rollingSearch) / $rollingSearch) * 100, 1) : ($searchViews > 0 ? 100.0 : 0.0),
-                    'geosearch' => $rollingGeosearch > 0 ? round((($geosearchViews - $rollingGeosearch) / $rollingGeosearch) * 100, 1) : ($geosearchViews > 0 ? 100.0 : 0.0),
-                    'stations' => $rollingStations > 0 ? round((($stationViews - $rollingStations) / $rollingStations) * 100, 1) : ($stationViews > 0 ? 100.0 : 0.0),
-                ];
-            }
-
-            // Get year-over-year comparison
-            $yoy = $this->calculateYearOverYearForDay($date, [
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-            ]);
-
-            $aggregated = [
-                'date' => $carbonDate->format('Y-m-d'),
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-                'diff_from_avg' => $diffFromAvg,
-                'pct_from_avg' => $pctFromAvg,
-                'yoy' => $yoy,
-            ];
-
-            // Cache the aggregated data
-            $this->setAggregatedData('day', $date, $aggregated);
-
-            return $aggregated;
-        } catch (\Exception $e) {
-            Log::error('Failed to aggregate day: '.$e->getMessage(), [
-                'date' => $date,
-                'exception' => $e,
-            ]);
-
-            return [];
+        if (! $forceRecalculate && ($cached = $this->getAggregatedDay($date)) !== null) {
+            return $cached;
         }
+
+        $carbonDate = Carbon::createFromFormat('Y_m_d', $date);
+        $totals = $this->totalsForDate($date);
+        $average = $this->getJson('stats_avg_dow_'.$carbonDate->dayOfWeekIso);
+
+        $diffFromAvg = [];
+        $pctFromAvg = [];
+        if ($average !== null) {
+            foreach ($totals as $metric => $value) {
+                $avg = $average[$metric] ?? 0;
+                $diffFromAvg[$metric] = $value - $avg;
+                $pctFromAvg[$metric] = $avg > 0 ? round(($value - $avg) / $avg * 100, 1) : ($value > 0 ? 100.0 : 0.0);
+            }
+        }
+
+        $aggregated = [
+            'date' => $carbonDate->format('Y-m-d'),
+            ...$totals,
+            'diff_from_avg' => $diffFromAvg,
+            'pct_from_avg' => $pctFromAvg,
+            'yoy' => $this->yearOverYear($carbonDate, $totals),
+        ];
+
+        Redis::set("stats_agg_day_{$date}", json_encode($aggregated));
+
+        return $aggregated;
     }
 
     /**
-     * Get cached daily aggregate
-     *
-     * @param  string  $date  Date in Y_m_d format
+     * @param  string  $date  Y_m_d
+     * @return array<string, mixed>|null
      */
     public function getAggregatedDay(string $date): ?array
     {
-        return $this->getAggregatedData('day', $date);
+        return $this->getJson("stats_agg_day_{$date}");
     }
 
     /**
-     * Aggregate weekly stats for a specific week
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $week  ISO week number (1-53)
-     */
-    public function aggregateWeek(string $year, int $week): array
-    {
-        try {
-            // Check if already cached
-            $cached = $this->getAggregatedWeek($year, $week);
-            if ($cached !== null) {
-                return $cached;
-            }
-
-            // Get the first day of the week (Monday) for ISO week
-            // ISO week: year starts on the Monday of the week containing Jan 4
-            $firstDay = Carbon::now()->setISODate((int) $year, $week)->startOfWeek();
-
-            // Aggregate all days in the week
-            $homeViews = 0;
-            $searchViews = 0;
-            $geosearchViews = 0;
-            $stationViews = 0;
-
-            for ($i = 0; $i < 7; $i++) {
-                $day = $firstDay->copy()->addDays($i);
-                $dateKey = $day->format('Y_m_d');
-
-                $homeViews += $this->getPageViews($dateKey, 'home');
-                $searchViews += $this->getPageViews($dateKey, 'search');
-                $geosearchViews += $this->getPageViews($dateKey, 'geosearch');
-                $stationViews += $this->getStationViewsForDate($dateKey);
-            }
-
-            // Get year-over-year comparison
-            $yoy = $this->calculateYearOverYearForWeek($year, $week, [
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-            ]);
-
-            $aggregated = [
-                'year' => $year,
-                'week' => $week,
-                'start_date' => $firstDay->format('Y-m-d'),
-                'end_date' => $firstDay->copy()->endOfWeek()->format('Y-m-d'),
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-                'yoy' => $yoy,
-            ];
-
-            // Cache the aggregated data
-            $this->setAggregatedData('week', "{$year}_{$week}", $aggregated);
-
-            return $aggregated;
-        } catch (\Exception $e) {
-            Log::error('Failed to aggregate week: '.$e->getMessage(), [
-                'year' => $year,
-                'week' => $week,
-                'exception' => $e,
-            ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Get cached weekly aggregate
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $week  ISO week number (1-53)
-     */
-    public function getAggregatedWeek(string $year, int $week): ?array
-    {
-        return $this->getAggregatedData('week', "{$year}_{$week}");
-    }
-
-    /**
-     * Aggregate monthly stats for a specific month
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $month  Month (1-12)
-     */
-    public function aggregateMonth(string $year, int $month): array
-    {
-        try {
-            // Check if already cached
-            $cached = $this->getAggregatedMonth($year, $month);
-            if ($cached !== null) {
-                return $cached;
-            }
-
-            // Get the first and last day of the month
-            $firstDay = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-            $lastDay = $firstDay->copy()->endOfMonth();
-
-            // Aggregate all days in the month
-            $homeViews = 0;
-            $searchViews = 0;
-            $geosearchViews = 0;
-            $stationViews = 0;
-
-            $currentDay = $firstDay->copy();
-            while ($currentDay->lte($lastDay)) {
-                $dateKey = $currentDay->format('Y_m_d');
-
-                $homeViews += $this->getPageViews($dateKey, 'home');
-                $searchViews += $this->getPageViews($dateKey, 'search');
-                $geosearchViews += $this->getPageViews($dateKey, 'geosearch');
-                $stationViews += $this->getStationViewsForDate($dateKey);
-
-                $currentDay->addDay();
-            }
-
-            // Get year-over-year comparison
-            $yoy = $this->calculateYearOverYearForMonth($year, $month, [
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-            ]);
-
-            $aggregated = [
-                'year' => $year,
-                'month' => $month,
-                'start_date' => $firstDay->format('Y-m-d'),
-                'end_date' => $lastDay->format('Y-m-d'),
-                'home' => $homeViews,
-                'search' => $searchViews,
-                'geosearch' => $geosearchViews,
-                'stations' => $stationViews,
-                'yoy' => $yoy,
-            ];
-
-            // Cache the aggregated data
-            $this->setAggregatedData('month', "{$year}_{$month}", $aggregated);
-
-            return $aggregated;
-        } catch (\Exception $e) {
-            Log::error('Failed to aggregate month: '.$e->getMessage(), [
-                'year' => $year,
-                'month' => $month,
-                'exception' => $e,
-            ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Get cached monthly aggregate
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $month  Month (1-12)
-     */
-    public function getAggregatedMonth(string $year, int $month): ?array
-    {
-        return $this->getAggregatedData('month', "{$year}_{$month}");
-    }
-
-    /**
-     * Build a Redis key for aggregated stats
-     *
-     * @param  string  $type  Type of aggregation (day, week, month)
-     * @param  string  $identifier  Identifier (date, year_week, year_month)
-     */
-    private function buildAggregateKey(string $type, string $identifier): string
-    {
-        return "stats_agg_{$type}_{$identifier}";
-    }
-
-    /**
-     * Store aggregated data in Redis
-     *
-     * @param  string  $type  Type of aggregation (day, week, month)
-     * @param  string  $identifier  Identifier (date, year_week, year_month)
-     * @param  array  $data  Aggregated data
-     */
-    private function setAggregatedData(string $type, string $identifier, array $data): void
-    {
-        try {
-            $key = $this->buildAggregateKey($type, $identifier);
-            Redis::set($key, json_encode($data));
-        } catch (\Exception $e) {
-            Log::error('Failed to set aggregated data: '.$e->getMessage(), [
-                'type' => $type,
-                'identifier' => $identifier,
-                'exception' => $e,
-            ]);
-        }
-    }
-
-    /**
-     * Get aggregated data from Redis
-     *
-     * @param  string  $type  Type of aggregation (day, week, month)
-     * @param  string  $identifier  Identifier (date, year_week, year_month)
-     */
-    private function getAggregatedData(string $type, string $identifier): ?array
-    {
-        try {
-            $key = $this->buildAggregateKey($type, $identifier);
-            $value = Redis::get($key);
-
-            if ($value === null) {
-                return null;
-            }
-
-            $data = json_decode($value, true);
-
-            return is_array($data) ? $data : null;
-        } catch (\Exception $e) {
-            Log::error('Failed to get aggregated data: '.$e->getMessage(), [
-                'type' => $type,
-                'identifier' => $identifier,
-                'exception' => $e,
-            ]);
-
-            return null;
-        }
-    }
-
-    /**
-     * Build a Redis key for stats
-     *
-     * @param  string  $date  Date in Y_m_d format
-     * @param  string  $page  Page identifier
-     */
-    private function buildKey(string $date, string $page): string
-    {
-        return "stats_{$date}_{$page}";
-    }
-
-    /**
-     * Calculate rolling averages for each day of week from last N months
-     *
-     * @param  int  $months  Number of months to look back (default: 3)
+     * Average totals per ISO weekday over the last $months months.
      */
     public function calculateRollingAverages(int $months = 3): void
     {
-        try {
-            $endDate = Carbon::now()->startOfDay();
-            $startDate = $endDate->copy()->subMonths($months)->startOfDay();
+        $end = Carbon::now()->startOfDay();
+        $start = $end->copy()->subMonths($months);
 
-            // For each day of week (1-7, Monday-Sunday)
-            for ($dayOfWeek = 1; $dayOfWeek <= 7; $dayOfWeek++) {
-                $homeTotal = 0;
-                $searchTotal = 0;
-                $geosearchTotal = 0;
-                $stationsTotal = 0;
-                $count = 0;
+        for ($dayOfWeek = 1; $dayOfWeek <= 7; $dayOfWeek++) {
+            $sums = array_fill_keys([...self::PAGES, 'stations'], 0);
+            $count = 0;
 
-                // Find all dates that match this day of week within the period
-                $currentDate = $startDate->copy();
-                while ($currentDate->lte($endDate)) {
-                    // Check if this date matches the day of week
-                    if ($currentDate->dayOfWeekIso === $dayOfWeek) {
-                        $dateKey = $currentDate->format('Y_m_d');
-
-                        $homeTotal += $this->getPageViews($dateKey, 'home');
-                        $searchTotal += $this->getPageViews($dateKey, 'search');
-                        $geosearchTotal += $this->getPageViews($dateKey, 'geosearch');
-                        $stationsTotal += $this->getStationViewsForDate($dateKey);
-                        $count++;
-                    }
-
-                    $currentDate->addDay();
+            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                if ($date->dayOfWeekIso !== $dayOfWeek) {
+                    continue;
                 }
 
+                foreach ($this->totalsForDate($date->format('Y_m_d')) as $metric => $value) {
+                    $sums[$metric] += $value;
+                }
+                $count++;
+            }
+
+            if ($count === 0) {
+                continue;
+            }
+
+            Redis::set("stats_avg_dow_{$dayOfWeek}", json_encode([
+                ...array_map(fn (int $sum): float => round($sum / $count, 2), $sums),
+                'last_updated' => Carbon::now()->toIso8601String(),
+            ]));
+        }
+    }
+
+    /**
+     * @return array{home: int, search: int, geosearch: int, stations: int}
+     */
+    private function totalsForDate(string $date): array
+    {
+        $totals = [];
+        foreach (self::PAGES as $page) {
+            $totals[$page] = $this->getPageViews($date, $page);
+        }
+        $totals['stations'] = $this->getStationViewsForDate($date);
+
+        return $totals;
+    }
+
+    /**
+     * @param  array<string, int>  $totals
+     * @return array<string, array{diff: int, pct: float}>
+     */
+    private function yearOverYear(Carbon $date, array $totals): array
+    {
+        $yearAgo = $this->totalsForDate($date->copy()->subYear()->format('Y_m_d'));
+
+        if (array_sum($yearAgo) === 0) {
+            return [];
+        }
+
+        $yoy = [];
+        foreach ($totals as $metric => $value) {
+            $previous = $yearAgo[$metric];
+            $yoy[$metric] = $previous === 0
+                ? ['diff' => $value, 'pct' => $value > 0 ? 100.0 : 0.0]
+                : ['diff' => $value - $previous, 'pct' => round(($value - $previous) / $previous * 100, 2)];
+        }
+
+        return $yoy;
+    }
+
+    /**
+     * Views per page id over $days days, ending $offsetDays days ago.
+     *
+     * @return Collection<string, int>
+     */
+    private function pageViewsForPeriod(int $days, int $offsetDays): Collection
+    {
+        $views = collect();
+
+        for ($i = $offsetDays; $i < $offsetDays + $days; $i++) {
+            $date = Carbon::now()->subDays($i)->format('Y_m_d');
+
+            foreach (self::RANKED_PAGES as $page) {
+                $count = $this->getPageViews($date, $page);
                 if ($count > 0) {
-                    $average = [
-                        'home' => round($homeTotal / $count, 2),
-                        'search' => round($searchTotal / $count, 2),
-                        'geosearch' => round($geosearchTotal / $count, 2),
-                        'stations' => round($stationsTotal / $count, 2),
-                        'last_updated' => Carbon::now()->toIso8601String(),
-                    ];
-
-                    // Store rolling average
-                    $key = "stats_avg_dow_{$dayOfWeek}";
-                    Redis::set($key, json_encode($average));
+                    $views->put($page, $views->get($page, 0) + $count);
                 }
             }
-        } catch (\Exception $e) {
-            Log::error('Failed to calculate rolling averages: '.$e->getMessage(), [
-                'months' => $months,
-                'exception' => $e,
-            ]);
-        }
-    }
 
-    /**
-     * Get rolling average for a specific day of week
-     *
-     * @param  int  $dayOfWeek  Day of week (1-7, Monday-Sunday)
-     */
-    private function getRollingAverageForDayOfWeek(int $dayOfWeek): ?array
-    {
-        try {
-            $key = "stats_avg_dow_{$dayOfWeek}";
-            $value = Redis::get($key);
-
-            if ($value === null) {
-                return null;
+            foreach ($this->stationViewsForDate($date) as $pageId => $count) {
+                if ($count > 0) {
+                    $views->put($pageId, $views->get($pageId, 0) + $count);
+                }
             }
-
-            $data = json_decode($value, true);
-
-            return is_array($data) ? $data : null;
-        } catch (\Exception $e) {
-            Log::error('Failed to get rolling average for day of week: '.$e->getMessage(), [
-                'dayOfWeek' => $dayOfWeek,
-                'exception' => $e,
-            ]);
-
-            return null;
         }
+
+        return $views;
     }
 
     /**
-     * Calculate year-over-year comparison for a specific day
-     *
-     * @param  string  $date  Date in Y_m_d format
-     * @param  array  $currentStats  Current stats
+     * Views of one page id over $days days, starting $daysAgo days ago.
      */
-    private function calculateYearOverYearForDay(string $date, array $currentStats): array
+    private function pageViewsOnDays(string $pageId, int $days, int $daysAgo): int
     {
-        try {
-            $carbonDate = Carbon::createFromFormat('Y_m_d', $date);
-            $yearAgoDate = $carbonDate->copy()->subYear();
-            $yearAgoDateKey = $yearAgoDate->format('Y_m_d');
+        $total = 0;
+        for ($i = 0; $i < $days; $i++) {
+            $total += $this->getPageViews(Carbon::now()->subDays($daysAgo + $i)->format('Y_m_d'), $pageId);
+        }
 
-            // Check if data exists from 1 year ago
-            $yearAgoHome = $this->getPageViews($yearAgoDateKey, 'home');
-            $yearAgoSearch = $this->getPageViews($yearAgoDateKey, 'search');
-            $yearAgoGeosearch = $this->getPageViews($yearAgoDateKey, 'geosearch');
-            $yearAgoStations = $this->getStationViewsForDate($yearAgoDateKey);
+        return $total;
+    }
 
-            // If no data from year ago, return empty
-            if ($yearAgoHome === 0 && $yearAgoSearch === 0 && $yearAgoGeosearch === 0 && $yearAgoStations === 0) {
-                return [];
+    /**
+     * Station page views on a day, keyed by page id (station_{code} or station_{code}_all).
+     *
+     * @return array<string, int>
+     */
+    private function stationViewsForDate(string $date): array
+    {
+        $prefix = $this->buildKey($date, '');
+        $views = [];
+
+        foreach ($this->scanKeys($this->buildKey($date, 'station_*')) as $key) {
+            $pageId = substr($key, strlen($prefix));
+            if (preg_match('/^station_\d+(?:_all)?$/', $pageId)) {
+                $views[$pageId] = (int) Redis::get($key);
             }
-
-            return [
-                'home' => $this->calculateYoYDiff($currentStats['home'], $yearAgoHome),
-                'search' => $this->calculateYoYDiff($currentStats['search'], $yearAgoSearch),
-                'geosearch' => $this->calculateYoYDiff($currentStats['geosearch'], $yearAgoGeosearch),
-                'stations' => $this->calculateYoYDiff($currentStats['stations'], $yearAgoStations),
-            ];
-        } catch (\Exception $e) {
-            Log::error('Failed to calculate year-over-year for day: '.$e->getMessage(), [
-                'date' => $date,
-                'exception' => $e,
-            ]);
-
-            return [];
         }
+
+        return $views;
     }
 
     /**
-     * Calculate year-over-year comparison for a specific week
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $week  ISO week number (1-53)
-     * @param  array  $currentStats  Current stats
+     * @param  Collection<string, Station>  $stations
+     * @return array{name: string, url: string}
      */
-    private function calculateYearOverYearForWeek(string $year, int $week, array $currentStats): array
+    private function describePage(string $pageId, Collection $stations): array
     {
-        try {
-            $yearAgo = (int) $year - 1;
-            $yearAgoWeek = $this->getAggregatedWeek((string) $yearAgo, $week);
+        $fixed = [
+            'home' => ['name' => 'Home Page', 'url' => '/'],
+            'search' => ['name' => 'Search Page', 'url' => '/search'],
+            'geosearch' => ['name' => 'Geolocation Search', 'url' => '/geosearch'],
+            'not_found' => ['name' => 'Not Found Page', 'url' => '/not-found'],
+        ];
 
-            if ($yearAgoWeek === null || empty($yearAgoWeek)) {
-                return [];
-            }
-
-            return [
-                'home' => $this->calculateYoYDiff($currentStats['home'], $yearAgoWeek['home'] ?? 0),
-                'search' => $this->calculateYoYDiff($currentStats['search'], $yearAgoWeek['search'] ?? 0),
-                'geosearch' => $this->calculateYoYDiff($currentStats['geosearch'], $yearAgoWeek['geosearch'] ?? 0),
-                'stations' => $this->calculateYoYDiff($currentStats['stations'], $yearAgoWeek['stations'] ?? 0),
-            ];
-        } catch (\Exception $e) {
-            Log::error('Failed to calculate year-over-year for week: '.$e->getMessage(), [
-                'year' => $year,
-                'week' => $week,
-                'exception' => $e,
-            ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Calculate year-over-year comparison for a specific month
-     *
-     * @param  string  $year  Year (e.g., '2024')
-     * @param  int  $month  Month (1-12)
-     * @param  array  $currentStats  Current stats
-     */
-    private function calculateYearOverYearForMonth(string $year, int $month, array $currentStats): array
-    {
-        try {
-            $yearAgo = (int) $year - 1;
-            $yearAgoMonth = $this->getAggregatedMonth((string) $yearAgo, $month);
-
-            if ($yearAgoMonth === null || empty($yearAgoMonth)) {
-                return [];
-            }
-
-            return [
-                'home' => $this->calculateYoYDiff($currentStats['home'], $yearAgoMonth['home'] ?? 0),
-                'search' => $this->calculateYoYDiff($currentStats['search'], $yearAgoMonth['search'] ?? 0),
-                'geosearch' => $this->calculateYoYDiff($currentStats['geosearch'], $yearAgoMonth['geosearch'] ?? 0),
-                'stations' => $this->calculateYoYDiff($currentStats['stations'], $yearAgoMonth['stations'] ?? 0),
-            ];
-        } catch (\Exception $e) {
-            Log::error('Failed to calculate year-over-year for month: '.$e->getMessage(), [
-                'year' => $year,
-                'month' => $month,
-                'exception' => $e,
-            ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Calculate year-over-year difference and percentage
-     *
-     * @param  int  $current  Current value
-     * @param  int  $previous  Previous year value
-     */
-    private function calculateYoYDiff(int $current, int $previous): array
-    {
-        if ($previous === 0) {
-            return ['diff' => $current, 'pct' => $current > 0 ? 100.0 : 0.0];
+        if (isset($fixed[$pageId])) {
+            return $fixed[$pageId];
         }
 
-        $diff = $current - $previous;
-        $pct = round(($diff / $previous) * 100, 2);
+        preg_match('/^station_(\d+)(_all)?$/', $pageId, $matches);
+        $code = $matches[1] ?? '';
+        $bothDirections = isset($matches[2]);
 
         return [
-            'diff' => $diff,
-            'pct' => $pct,
+            'name' => 'Station: '.($stations->get($code)->name ?? $code).($bothDirections ? ' (Both Directions)' : ''),
+            'url' => '/'.$code.($bothDirections ? '/all' : ''),
         ];
     }
 
     /**
-     * Calculate year-over-year comparisons for all periods
+     * @return array{type: string, diff: int, pct: float}|null
      */
-    public function calculateYearOverYear(): void
+    private function trend(string $type, int $views, int $previous): ?array
     {
-        try {
-            // This method will be called by the command to recalculate YoY for existing aggregates
-            // For now, it's handled automatically when aggregating new periods
-            // Could be extended to recalculate all existing aggregates if needed
-        } catch (\Exception $e) {
-            Log::error('Failed to calculate year-over-year: '.$e->getMessage(), [
-                'exception' => $e,
-            ]);
+        if ($previous > 0) {
+            return ['type' => $type, 'diff' => $views - $previous, 'pct' => round(($views - $previous) / $previous * 100, 1)];
         }
+
+        return $views > 0 ? ['type' => $type, 'diff' => $views, 'pct' => 100.0] : null;
+    }
+
+    private function getPageViews(string $date, string $page): int
+    {
+        return (int) Redis::get($this->buildKey($date, $page));
     }
 
     /**
-     * Remove Redis prefix from a key if present
+     * @return array<string, mixed>|null
      */
-    private function removePrefix(string $key): string
+    private function getJson(string $key): ?array
     {
-        // Get the configured prefix from Redis options
-        $prefix = config('database.redis.options.prefix', '');
+        $value = Redis::get($key);
+        $data = is_string($value) ? json_decode($value, true) : null;
 
-        // Remove prefix if it exists at the start of the key
-        if ($prefix && strpos($key, $prefix) === 0) {
-            return substr($key, strlen($prefix));
-        }
+        return is_array($data) ? $data : null;
+    }
 
-        return $key;
+    /**
+     * All keys matching a pattern, using SCAN so Redis is never blocked.
+     * Returned keys have the connection prefix stripped, ready for Redis::get().
+     *
+     * @return list<string>
+     */
+    private function scanKeys(string $pattern): array
+    {
+        $prefix = (string) config('database.redis.options.prefix', '');
+        $keys = [];
+        $cursor = 0;
+
+        do {
+            $result = Redis::scan($cursor, ['match' => $pattern, 'count' => self::SCAN_BATCH]);
+            if (! is_array($result)) {
+                break;
+            }
+
+            [$cursor, $batch] = $result;
+            foreach ($batch as $key) {
+                $keys[] = $prefix !== '' && str_starts_with($key, $prefix) ? substr($key, strlen($prefix)) : $key;
+            }
+        } while ((string) $cursor !== '0');
+
+        return array_values(array_unique($keys));
+    }
+
+    private function buildKey(string $date, string $page): string
+    {
+        return "stats_{$date}_{$page}";
     }
 }

@@ -4,40 +4,28 @@ namespace App\Http\Controllers;
 
 use App\Services\StatsService;
 use Carbon\Carbon;
-use Illuminate\Routing\Controller as BaseController;
+use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Cache;
 
-class StatsController extends BaseController
+class StatsController extends Controller
 {
-    private StatsService $statsService;
+    private const DAYS_SHOWN = 14;
 
-    public function __construct(StatsService $statsService)
+    private const CACHE_SECONDS = 600;
+
+    public function index(StatsService $stats): View
     {
-        $this->statsService = $statsService;
-    }
+        return view('stats', Cache::remember('stats_page', self::CACHE_SECONDS, function () use ($stats): array {
+            $days = collect(range(0, self::DAYS_SHOWN - 1))->map(function (int $daysAgo) use ($stats): array {
+                $date = Carbon::now()->subDays($daysAgo)->format('Y_m_d');
 
-    public function index()
-    {
-        $stats = [];
-        $popularPages = $this->statsService->getPopularPages(7, 27);
+                return $stats->getAggregatedDay($date) ?? $stats->getDailyStats($date);
+            });
 
-        // Get stats for last 14 days - use aggregated data when available
-        for ($i = 0; $i < 14; $i++) {
-            $date = Carbon::now()->subDays($i)->format('Y_m_d');
-
-            // Try to get aggregated data first (includes diff_from_avg and yoy)
-            $aggregated = $this->statsService->getAggregatedDay($date);
-
-            if ($aggregated !== null) {
-                $stats[] = $aggregated;
-            } else {
-                // Fall back to basic daily stats if aggregation not available
-                $stats[] = $this->statsService->getDailyStats($date);
-            }
-        }
-
-        return view('stats', [
-            'stats' => collect($stats),
-            'popularPages' => $popularPages,
-        ]);
+            return [
+                'stats' => $days,
+                'popularPages' => $stats->getPopularPages(7, 27),
+            ];
+        }));
     }
 }

@@ -69,13 +69,10 @@ class GenerateFakeStatsSeeder extends Seeder
                 $generatedKeys++;
 
                 // "Both directions" views - typically 30-50% of regular views
-                // Only generate if there are regular views
-                if ($stationViews > 0) {
-                    $bothDirectionsViews = (int) ($stationViews * (rand(30, 50) / 100));
-                    if ($bothDirectionsViews > 0) {
-                        $this->setPageViews($dateKey, "station_{$code}_all", $bothDirectionsViews);
-                        $generatedKeys++;
-                    }
+                $bothDirectionsViews = (int) ($stationViews * (rand(30, 50) / 100));
+                if ($bothDirectionsViews > 0) {
+                    $this->setPageViews($dateKey, "station_{$code}_all", $bothDirectionsViews);
+                    $generatedKeys++;
                 }
             }
 
