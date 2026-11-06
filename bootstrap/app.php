@@ -11,7 +11,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // Set by plain JS on the station page before it auto-reloads, so it must stay unencrypted.
+        $middleware->encryptCookies(except: ['autoreload']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

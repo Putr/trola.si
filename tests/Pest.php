@@ -4,18 +4,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
 
-pest()->extend(Tests\TestCase::class)
-    ->use(RefreshDatabase::class)
-    ->in('Feature');
-
-pest()->extend(Tests\TestCase::class)
-    ->in('Unit');
-
-/*
+/**
  * Never talk to the live LPP API, and start every test with an empty test Redis.
  * The port guard makes sure we can only ever flush the throwaway test container.
  */
-beforeEach(function () {
+function isolateExternalServices(): void
+{
     Http::preventStrayRequests();
 
     if ((int) config('database.redis.default.port') !== 63379) {
@@ -23,4 +17,13 @@ beforeEach(function () {
     }
 
     Redis::flushdb();
-});
+}
+
+pest()->extend(Tests\TestCase::class)
+    ->use(RefreshDatabase::class)
+    ->beforeEach(fn () => isolateExternalServices())
+    ->in('Feature');
+
+pest()->extend(Tests\TestCase::class)
+    ->beforeEach(fn () => isolateExternalServices())
+    ->in('Unit');

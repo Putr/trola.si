@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\LppApiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Station extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'id',
         'code',
