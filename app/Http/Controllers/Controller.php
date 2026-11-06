@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Station;
 use App\Repositories\StationRepository;
+use App\Services\ArrivalsService;
 use App\Services\LppApiService;
 use App\Services\StatsService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -21,7 +22,7 @@ class Controller extends BaseController
 
     private StatsService $statsService;
 
-    public function __construct(LppApiService $lppApiService, StatsService $statsService, private StationRepository $stations)
+    public function __construct(LppApiService $lppApiService, StatsService $statsService, private StationRepository $stations, private ArrivalsService $arrivals)
     {
         $this->lppApiService = $lppApiService;
         $this->statsService = $statsService;
@@ -70,7 +71,7 @@ class Controller extends BaseController
         $this->trackPageView('station_'.$stopId);
 
         // Try to get arrivals from cache
-        $arrivals = $this->getStationArrivalsFromCache($station);
+        $arrivals = $this->arrivals->forStation($station);
 
         // Get opposite station code if it exists
         $oppositeCode = null;
@@ -120,7 +121,7 @@ class Controller extends BaseController
         }
 
         // Try to get arrivals from cache
-        $arrivals = $this->getStationArrivalsFromCache($station);
+        $arrivals = $this->arrivals->forStation($station);
 
         // Get opposite station code if it exists
         $oppositeCode = null;
@@ -133,7 +134,7 @@ class Controller extends BaseController
         // Only fetch and merge opposite station arrivals if oppositeStationCode exists
         if ($hasOppositeStation) {
             // Try to get opposite station arrivals from cache
-            $oppositeArrivals = $this->getStationArrivalsFromCache($oppositeStation);
+            $oppositeArrivals = $this->arrivals->forStation($oppositeStation);
 
             $arrivals = collect(array_merge($arrivals, $oppositeArrivals))
                 ->sortBy('route_name_numeric')
@@ -296,16 +297,6 @@ class Controller extends BaseController
             ],
             'useLocation' => true,
         ]);
-    }
-
-    /**
-     * Temporary home of the 30s arrivals cache until Task 5 moves arrivals into ArrivalsService.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function getStationArrivalsFromCache(Station $station): array
-    {
-        return Cache::remember("arrivals:{$station->code}", 30, fn (): array => $station->arrivals);
     }
 
     public function help()

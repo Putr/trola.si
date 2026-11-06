@@ -14,9 +14,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(LppApiService::class, function ($app) {
-            return new LppApiService;
-        });
+        $this->app->singleton(LppApiService::class, fn (): LppApiService => new LppApiService(
+            baseUrl: (string) config('lpp.api_url'),
+            apiKey: (string) config('lpp.api_key'),
+        ));
     }
 
     public function boot(): void

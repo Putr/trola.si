@@ -2,121 +2,127 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Thin client for the LPP open data API (https://data.lpp.si/api).
+ *
+ * Successful responses are cached briefly so a burst of visitors on one station
+ * costs a single upstream call. Failures are logged and returned as null.
+ */
 class LppApiService
 {
-    private string $baseUrl;
+    public const CACHE_SECONDS = 30;
 
-    private string $apiKey;
+    private const TIMEOUT_SECONDS = 5;
 
-    public function __construct()
-    {
-        $this->baseUrl = rtrim(config('lpp.api_url'), '/');
-        $this->apiKey = config('lpp.api_key');
-    }
+    /** Station used to check that the API responds (Bavarski dvor). */
+    private const PING_STATION_CODE = '600011';
 
+    public function __construct(
+        private readonly string $baseUrl,
+        private readonly string $apiKey,
+    ) {}
+
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getStationArrivals(string $stationCode): ?array
     {
-        return $this->safeApiCall(
-            'Station Arrivals',
-            "/station/arrival?station-code={$stationCode}",
-            ['station_id' => $stationCode]
-        );
+        return $this->get('/station/arrival', ['station-code' => $stationCode]);
     }
 
-    public function getStationDetails(string $stationCode): ?array
+    /**
+     * @return array<int, array<string, mixed>>|null
+     */
+    public function getStationsInRange(float $latitude, float $longitude, int $radius = 500): ?array
     {
-        return $this->safeApiCall(
-            'Station Details',
-            "/station/station-details?station-code={$stationCode}&show-subroutes=1",
-            ['station_id' => $stationCode]
-        );
+        return $this->get('/station/stations-in-range', [
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'radius' => $radius,
+        ]);
     }
 
-    public function getRoutesOnStation(string $stationCode): ?array
+    /**
+     * Every station with its routes. Never cached: the nightly sync must see fresh data.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    public function getAllStations(): ?array
     {
-        return $this->safeApiCall(
-            'Routes On Station',
-            "/station/routes-on-station?station-code={$stationCode}",
-            ['station_id' => $stationCode]
-        );
+        return $this->get('/station/station-details', ['show-subroutes' => 1], cache: false);
     }
 
     public function ping(): bool
     {
-        try {
-            $response = $this->callApi('/station/arrival?station-code=600011');
+        return $this->get('/station/arrival', ['station-code' => self::PING_STATION_CODE], cache: false) !== null;
+    }
 
-            return (bool) $response->successful();
-        } catch (\Exception $e) {
-            Log::error('LPP API Ping failed: '.$e->getMessage());
-
-            return false;
+    /**
+     * @param  array<string, scalar>  $query
+     * @return array<mixed>|null
+     */
+    private function get(string $path, array $query, bool $cache = true): ?array
+    {
+        if (! $cache) {
+            return $this->fetch($path, $query);
         }
+
+        $key = 'lpp_api_'.md5($path.'?'.http_build_query($query));
+
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $data = $this->fetch($path, $query);
+        if ($data !== null) {
+            Cache::put($key, $data, self::CACHE_SECONDS);
+        }
+
+        return $data;
     }
 
-    public function getAllStations(): ?array
-    {
-        return $this->safeApiCall(
-            'All Stations',
-            '/station/station-details?show-subroutes=1',
-            [],
-            cacheable: false,
-        );
-    }
-
-    public function getStationsInRange(float $latitude, float $longitude, int $radius = 500): ?array
-    {
-        return $this->safeApiCall(
-            'Stations In Range',
-            "/station/stations-in-range?latitude={$latitude}&longitude={$longitude}&radius={$radius}",
-            [
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'radius' => $radius,
-            ]
-        );
-    }
-
-    //
-    // UTILITY
-    //
-
-    private function safeApiCall(string $operation, string $endpoint, array $context = [], bool $cacheable = true): ?array
+    /**
+     * @param  array<string, scalar>  $query
+     * @return array<mixed>|null
+     */
+    private function fetch(string $path, array $query): ?array
     {
         try {
-            $cacheKey = 'lpp_api_'.md5($endpoint.'GET');
-
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$this->apiKey}",
-            ])->get("{$this->baseUrl}/{$endpoint}");
-
-            if (! $response->successful()) {
-                Log::error("LPP API {$operation} failed", [
-                    ...$context,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-
-                return null;
-            }
-
-            $data = $response->json();
-            if (! $cacheable) {
-                return $data['data'];
-            }
-
-            // Only cache successful responses
-            return Cache::remember($cacheKey, 30, function () use ($data) {
-                return $data['data'];
-            });
-        } catch (\Exception $e) {
-            Log::error("LPP API {$operation} failed: ".$e->getMessage(), $context);
+            $response = $this->client()->get(ltrim($path, '/'), $query);
+        } catch (ConnectionException $e) {
+            Log::warning('LPP API unreachable', ['path' => $path, 'query' => $query, 'error' => $e->getMessage()]);
 
             return null;
         }
+
+        $data = $response->json('data');
+
+        if (! $response->successful() || ! is_array($data)) {
+            Log::warning('LPP API request failed', [
+                'path' => $path,
+                'query' => $query,
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 500),
+            ]);
+
+            return null;
+        }
+
+        return $data;
+    }
+
+    private function client(): PendingRequest
+    {
+        return Http::baseUrl(rtrim($this->baseUrl, '/').'/')
+            ->withToken($this->apiKey)
+            ->acceptJson()
+            ->timeout(self::TIMEOUT_SECONDS);
     }
 }

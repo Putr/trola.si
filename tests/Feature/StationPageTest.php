@@ -90,3 +90,10 @@ it('merges arrivals of both stations on the both-directions page', function () {
 it('shows the not-found view for an unknown station', function () {
     $this->get('/123456')->assertViewIs('station-not-found');
 });
+
+it('shows a bus arriving now as 0 minutes', function () {
+    stationPair();
+    fakeArrivals(['600011' => [['route' => '6', 'eta' => 0]]]);
+
+    $this->get('/600011')->assertOk()->assertSee("0'", false);
+});
