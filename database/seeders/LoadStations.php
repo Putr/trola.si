@@ -5,9 +5,9 @@ namespace Database\Seeders;
 use App\Models\Station;
 use App\Services\LppApiService;
 use App\Traits\CachesStations;
+use Illuminate\Console\Command;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Console\Command;
 
 class LoadStations extends Seeder
 {
@@ -44,6 +44,7 @@ class LoadStations extends Seeder
     public function setCommand(Command $command): self
     {
         $this->command = $command;
+
         return $this;
     }
 
@@ -51,8 +52,9 @@ class LoadStations extends Seeder
     {
         $stations = $this->api->getAllStations();
 
-        if (!$stations) {
+        if (! $stations) {
             Log::error('Failed to fetch stations from LPP API');
+
             return;
         }
 
@@ -96,7 +98,7 @@ class LoadStations extends Seeder
 
     private function findSequentialStations(): void
     {
-        $this->info("Looking for sequential station codes...");
+        $this->info('Looking for sequential station codes...');
 
         // Get stations without opposites
         $incompleteStations = Station::whereNull('opposite_station_id')->get();
@@ -104,7 +106,7 @@ class LoadStations extends Seeder
         // Group stations by their code, excluding nulls or empty codes
         $stationsByCode = [];
         foreach ($incompleteStations as $station) {
-            if (!empty($station->code)) {
+            if (! empty($station->code)) {
                 $stationsByCode[$station->code] = $station;
             }
         }
@@ -123,7 +125,7 @@ class LoadStations extends Seeder
                 $refreshedStations = Station::whereNull('opposite_station_id')->get();
                 $stationsByCode = [];
                 foreach ($refreshedStations as $station) {
-                    if (!empty($station->code)) {
+                    if (! empty($station->code)) {
                         $stationsByCode[$station->code] = $station;
                     }
                 }
@@ -132,13 +134,13 @@ class LoadStations extends Seeder
             }
 
             // Skip if code no longer exists (may have been linked already)
-            if (!isset($stationsByCode[$code])) {
+            if (! isset($stationsByCode[$code])) {
                 continue;
             }
 
             // Calculate potential sequential codes (±1)
-            $nextCode = (string)((int)$code + 1);
-            $prevCode = (string)((int)$code - 1);
+            $nextCode = (string) ((int) $code + 1);
+            $prevCode = (string) ((int) $code - 1);
 
             // Check if the next sequential code exists
             if (isset($stationsByCode[$nextCode])) {
@@ -146,7 +148,7 @@ class LoadStations extends Seeder
                 $oppositeStation = $stationsByCode[$nextCode];
 
                 // Only link if neither station has an opposite yet
-                if (!$station->opposite_station_id && !$oppositeStation->opposite_station_id) {
+                if (! $station->opposite_station_id && ! $oppositeStation->opposite_station_id) {
                     $this->linkStations($station, $oppositeStation);
                     $this->info("Linked sequential codes: {$station->name} (code: {$station->code}) ↔ {$oppositeStation->name} (code: {$oppositeStation->code})");
                     $linkedCount++;
@@ -157,12 +159,12 @@ class LoadStations extends Seeder
                 }
             }
             // Check if previous sequential code exists (for thoroughness)
-            else if (isset($stationsByCode[$prevCode])) {
+            elseif (isset($stationsByCode[$prevCode])) {
                 $station = $stationsByCode[$code];
                 $oppositeStation = $stationsByCode[$prevCode];
 
                 // Only link if neither station has an opposite yet
-                if (!$station->opposite_station_id && !$oppositeStation->opposite_station_id) {
+                if (! $station->opposite_station_id && ! $oppositeStation->opposite_station_id) {
                     $this->linkStations($station, $oppositeStation);
                     $this->info("Linked sequential codes: {$station->name} (code: {$station->code}) ↔ {$oppositeStation->name} (code: {$oppositeStation->code})");
                     $linkedCount++;
@@ -178,7 +180,7 @@ class LoadStations extends Seeder
         if ($linkedCount > 0) {
             $this->info("Linked {$linkedCount} pairs of stations with sequential codes.");
         } else {
-            $this->info("No new sequential station pairs were linked.");
+            $this->info('No new sequential station pairs were linked.');
         }
     }
 
@@ -187,7 +189,7 @@ class LoadStations extends Seeder
         foreach ($pairs as $pair) {
             $existingCodes = [
                 $pair['station1']->code,
-                $pair['station2']->code
+                $pair['station2']->code,
             ];
 
             sort($existingCodes);
@@ -206,8 +208,8 @@ class LoadStations extends Seeder
         // Determine direction:
         // Primary rule: station whose ID ends with "1" is toward center
         // Fallback rule: if both/neither end with "1", lower ID is toward center
-        $stationEndsWithOne = substr((string)$station->code, -1) === '1';
-        $oppositeEndsWithOne = substr((string)$opposite->code, -1) === '1';
+        $stationEndsWithOne = substr((string) $station->code, -1) === '1';
+        $oppositeEndsWithOne = substr((string) $opposite->code, -1) === '1';
 
         if ($stationEndsWithOne !== $oppositeEndsWithOne) {
             $isToCenter = $stationEndsWithOne;
@@ -224,7 +226,7 @@ class LoadStations extends Seeder
         // Update opposite station
         $opposite->update([
             'opposite_station_id' => $station->id,
-            'is_direction_to_center' => !$isToCenter,
+            'is_direction_to_center' => ! $isToCenter,
         ]);
     }
 }

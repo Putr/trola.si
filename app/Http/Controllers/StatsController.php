@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Services\StatsService;
 use Carbon\Carbon;
 use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Collection;
 
 class StatsController extends BaseController
 {
@@ -38,7 +37,7 @@ class StatsController extends BaseController
 
         return view('stats', [
             'stats' => collect($stats),
-            'popularPages' => $popularPages
+            'popularPages' => $popularPages,
         ]);
     }
 }

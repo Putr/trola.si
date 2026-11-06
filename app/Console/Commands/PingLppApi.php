@@ -30,10 +30,12 @@ class PingLppApi extends Command
 
         if ($api->ping()) {
             $this->info('✅ LPP API is responding');
+
             return Command::SUCCESS;
         }
 
         $this->error('❌ LPP API is not responding');
+
         return Command::FAILURE;
     }
 }

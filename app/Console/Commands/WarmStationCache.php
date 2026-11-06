@@ -11,6 +11,7 @@ class WarmStationCache extends Command
     use CachesStations;
 
     protected $signature = 'stations:warm-cache';
+
     protected $description = 'Warm up the station cache by pre-caching all stations';
 
     public function handle()

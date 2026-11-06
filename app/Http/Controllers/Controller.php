@@ -8,17 +8,17 @@ use App\Services\StatsService;
 use App\Traits\CachesStations;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
-use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Request as RequestFacade;
-use Illuminate\Support\Facades\View;
 
 class Controller extends BaseController
 {
-    use AuthorizesRequests, ValidatesRequests, CachesStations;
+    use AuthorizesRequests, CachesStations, ValidatesRequests;
 
     private LppApiService $lppApiService;
+
     private StatsService $statsService;
 
     public function __construct(LppApiService $lppApiService, StatsService $statsService)
@@ -49,10 +49,10 @@ class Controller extends BaseController
             'hrefs' => [
                 'to' => '/search?direction=to',
                 'from' => '/search?direction=from',
-                'all' => '/search?direction=all'
+                'all' => '/search?direction=all',
             ],
             'useLocation' => true,
-            'lookingForLocation' => true
+            'lookingForLocation' => true,
         ]);
     }
 
@@ -61,12 +61,13 @@ class Controller extends BaseController
         // Try to get station from cache first
         $station = $this->getStationFromCache($stopId);
 
-        if (!$station) {
+        if (! $station) {
             $this->trackPageView('not_found');
+
             return view('station-not-found');
         }
 
-        $this->trackPageView('station_' . $stopId);
+        $this->trackPageView('station_'.$stopId);
 
         // Try to get arrivals from cache
         $arrivals = $this->getStationArrivalsFromCache($station);
@@ -77,21 +78,21 @@ class Controller extends BaseController
             $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
             $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
         }
-        $hasOppositeStation = !is_null($oppositeCode);
+        $hasOppositeStation = ! is_null($oppositeCode);
 
         // Determine which links should be available
         $toHref = null;
         $fromHref = null;
 
         if ($hasOppositeStation) {
-            $toHref = '/' . ($station->is_direction_to_center ? $station->code : $oppositeCode);
-            $fromHref = '/' . ($station->is_direction_to_center ? $oppositeCode : $station->code);
+            $toHref = '/'.($station->is_direction_to_center ? $station->code : $oppositeCode);
+            $fromHref = '/'.($station->is_direction_to_center ? $oppositeCode : $station->code);
         } else {
             // If no opposite station, only enable the current direction button
             if ($station->is_direction_to_center) {
-                $toHref = '/' . $station->code;
+                $toHref = '/'.$station->code;
             } else {
-                $fromHref = '/' . $station->code;
+                $fromHref = '/'.$station->code;
             }
         }
 
@@ -102,19 +103,19 @@ class Controller extends BaseController
             'hrefs' => [
                 'to' => $toHref,
                 'from' => $fromHref,
-                'all' => '/' . $station->code . '/all'
-            ]
+                'all' => '/'.$station->code.'/all',
+            ],
         ]);
     }
 
     public function showBothDirections(string $stopId)
     {
-        $this->trackPageView('station_' . $stopId . '_all');
+        $this->trackPageView('station_'.$stopId.'_all');
 
         // Try to get station from cache first
         $station = $this->getStationFromCache($stopId);
 
-        if (!$station) {
+        if (! $station) {
             return view('station-not-found');
         }
 
@@ -127,7 +128,7 @@ class Controller extends BaseController
             $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
             $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
         }
-        $hasOppositeStation = !is_null($oppositeCode);
+        $hasOppositeStation = ! is_null($oppositeCode);
 
         // Only fetch and merge opposite station arrivals if oppositeStationCode exists
         if ($hasOppositeStation) {
@@ -145,14 +146,14 @@ class Controller extends BaseController
         $fromHref = null;
 
         if ($hasOppositeStation) {
-            $toHref = '/' . ($station->is_direction_to_center ? $station->code : $oppositeCode);
-            $fromHref = '/' . ($station->is_direction_to_center ? $oppositeCode : $station->code);
+            $toHref = '/'.($station->is_direction_to_center ? $station->code : $oppositeCode);
+            $fromHref = '/'.($station->is_direction_to_center ? $oppositeCode : $station->code);
         } else {
             // If no opposite station, only enable the current direction button
             if ($station->is_direction_to_center) {
-                $toHref = '/' . $station->code;
+                $toHref = '/'.$station->code;
             } else {
-                $fromHref = '/' . $station->code;
+                $fromHref = '/'.$station->code;
             }
         }
 
@@ -163,8 +164,8 @@ class Controller extends BaseController
             'hrefs' => [
                 'to' => $toHref,
                 'from' => $fromHref,
-                'all' => '/' . $station->code . '/all'
-            ]
+                'all' => '/'.$station->code.'/all',
+            ],
         ]);
     }
 
@@ -184,12 +185,12 @@ class Controller extends BaseController
         } else {
             $stations = Station::where(function ($q) use ($query) {
                 $q->where('name', $query) // Exact match
-                    ->orWhere('code', 'LIKE', $query . '%') // Code match
-                    ->orWhere('name', 'LIKE', $query . '%') // Exact start match
-                    ->orWhereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query . '*']) // Full-text match
-                    ->orWhere('name', 'LIKE', '%' . $query . '%'); // Partial match
+                    ->orWhere('code', 'LIKE', $query.'%') // Code match
+                    ->orWhere('name', 'LIKE', $query.'%') // Exact start match
+                    ->orWhereRaw('MATCH(name) AGAINST(? IN BOOLEAN MODE)', [$query.'*']) // Full-text match
+                    ->orWhere('name', 'LIKE', '%'.$query.'%'); // Partial match
             })
-                ->orderByRaw("
+                ->orderByRaw('
                 CASE
                     WHEN name = ? THEN 1
                     WHEN code LIKE ? THEN 2
@@ -197,8 +198,7 @@ class Controller extends BaseController
                     WHEN MATCH(name) AGAINST(? IN BOOLEAN MODE) THEN 4
                     WHEN name LIKE ? THEN 5
                     ELSE 6
-                END", [$query, $query . '%', $query . '%', $query . '*', '%' . $query . '%']);
-
+                END', [$query, $query.'%', $query.'%', $query.'*', '%'.$query.'%']);
 
             if ($direction !== 'all') {
                 $stations->where('is_direction_to_center', $direction === 'to');
@@ -209,9 +209,10 @@ class Controller extends BaseController
             if ($stations->count() === 1) {
                 $station = $stations->first();
                 if ($direction === 'all') {
-                    return redirect('/' . $station->code . '/all');
+                    return redirect('/'.$station->code.'/all');
                 }
-                return redirect('/' . $station->code);
+
+                return redirect('/'.$station->code);
             }
         }
 
@@ -222,11 +223,11 @@ class Controller extends BaseController
             'directionToCenter' => $direction === 'all' ? null : ($direction === 'to' ? true : false),
             'useLocation' => false,
             'hrefs' => [
-                'to' => '/search?q=' . $query . '&direction=to',
-                'from' => '/search?q=' . $query . '&direction=from',
-                'all' => '/search?q=' . $query . '&direction=all'
+                'to' => '/search?q='.$query.'&direction=to',
+                'from' => '/search?q='.$query.'&direction=from',
+                'all' => '/search?q='.$query.'&direction=all',
             ],
-            'locationFailed' => $request->has('locationFailed')
+            'locationFailed' => $request->has('locationFailed'),
         ]);
     }
 
@@ -243,7 +244,7 @@ class Controller extends BaseController
 
         $nearbyStations = $this->lppApiService->getStationsInRange($latitude, $longitude);
 
-        if (!$nearbyStations) {
+        if (! $nearbyStations) {
             return view('search', [
                 'stations' => collect([]),
                 'query' => '',
@@ -252,10 +253,10 @@ class Controller extends BaseController
                 'hrefs' => [
                     'to' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=to",
                     'from' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=from",
-                    'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all"
+                    'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all",
                 ],
                 'useLocation' => true,
-                'error' => 'V bližini ni najdenih postaj.'
+                'error' => 'V bližini ni najdenih postaj.',
             ]);
         }
 
@@ -270,14 +271,17 @@ class Controller extends BaseController
                 $stationModel = $stationsMap[$station['ref_id']];
                 // Inject the distance as a temporary attribute
                 $stationModel->distance = round($station['distance']);
+
                 return $stationModel;
             }
+
             return null;
         })->filter();
 
         if ($sortedStations->count() === 1) {
             $station = $sortedStations->first();
-            return redirect('/' . $station->code . '/all');
+
+            return redirect('/'.$station->code.'/all');
         }
 
         return view('search', [
@@ -288,15 +292,16 @@ class Controller extends BaseController
             'hrefs' => [
                 'to' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=to",
                 'from' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=from",
-                'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all"
+                'all' => "/geosearch?lat={$latitude}&lon={$longitude}&direction=all",
             ],
-            'useLocation' => true
+            'useLocation' => true,
         ]);
     }
 
     public function help()
     {
         $this->trackPageView('help');
+
         return view('help');
     }
 }

@@ -76,7 +76,7 @@ class AggregateStats extends Command
             }
 
             if (($i + 1) % 10 === 0) {
-                $this->info('Processed ' . ($i + 1) . ' days...');
+                $this->info('Processed '.($i + 1).' days...');
             }
         }
         $this->info("✓ Aggregated {$aggregatedDays} days");

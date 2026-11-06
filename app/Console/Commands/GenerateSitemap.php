@@ -41,13 +41,13 @@ class GenerateSitemap extends Command
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
         <loc>https://trola.si/</loc>
-        <lastmod>' . Carbon::now()->format('Y-m-d') . '</lastmod>
+        <lastmod>'.Carbon::now()->format('Y-m-d').'</lastmod>
         <changefreq>weekly</changefreq>
         <priority>1.0</priority>
     </url>
     <url>
         <loc>https://trola.si/search</loc>
-        <lastmod>' . Carbon::now()->format('Y-m-d') . '</lastmod>
+        <lastmod>'.Carbon::now()->format('Y-m-d').'</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
     </url>';
@@ -56,8 +56,8 @@ class GenerateSitemap extends Command
             foreach ($stations as $station) {
                 $xml .= '
     <url>
-        <loc>https://trola.si/' . $station->code . '/all</loc>
-        <lastmod>' . Carbon::now()->format('Y-m-d') . '</lastmod>
+        <loc>https://trola.si/'.$station->code.'/all</loc>
+        <lastmod>'.Carbon::now()->format('Y-m-d').'</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.7</priority>
     </url>';
@@ -71,12 +71,12 @@ class GenerateSitemap extends Command
             $sitemapPath = public_path('sitemap.xml');
             File::put($sitemapPath, $xml);
 
-            $this->info('Sitemap generated successfully with ' . $stations->count() . ' stations!');
+            $this->info('Sitemap generated successfully with '.$stations->count().' stations!');
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            Log::error('Error generating sitemap: ' . $e->getMessage());
-            $this->error('Error generating sitemap: ' . $e->getMessage());
+            Log::error('Error generating sitemap: '.$e->getMessage());
+            $this->error('Error generating sitemap: '.$e->getMessage());
 
             return Command::FAILURE;
         }

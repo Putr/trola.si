@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use App\Services\LppApiService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Builder;
 
 /**
  * @property int $id
@@ -44,7 +44,7 @@ class Station extends Model
         return $this->belongsTo(Station::class, 'opposite_station_id');
     }
 
-    public function getOppositeStationCodeAttribute(): int|null
+    public function getOppositeStationCodeAttribute(): ?int
     {
         return $this->oppositeStation?->code;
     }
@@ -66,7 +66,7 @@ class Station extends Model
                 'route_name_numeric' => (int) preg_replace('/[^0-9]/', '', $arrivalData['route_name']),
                 'etas' => array_merge($out[$arrivalData['route_name']]['etas'] ?? [], [(int) $arrivalData['eta_min']]),
             ];
-        };
+        }
 
         // Process the ETAs for each route
         foreach ($out as $routeName => $data) {

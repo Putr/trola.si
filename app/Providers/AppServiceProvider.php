@@ -3,9 +3,9 @@
 namespace App\Providers;
 
 use App\Services\LppApiService;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Vite;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -15,7 +15,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(LppApiService::class, function ($app) {
-            return new LppApiService();
+            return new LppApiService;
         });
     }
 

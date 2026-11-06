@@ -5,11 +5,11 @@ namespace App\Services;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\Client\Response;
 
 class LppApiService
 {
     private string $baseUrl;
+
     private string $apiKey;
 
     public function __construct()
@@ -18,28 +18,28 @@ class LppApiService
         $this->apiKey = config('lpp.api_key');
     }
 
-    public function getStationArrivals(string $stationCode): array|null
+    public function getStationArrivals(string $stationCode): ?array
     {
         return $this->safeApiCall(
-            "Station Arrivals",
+            'Station Arrivals',
             "/station/arrival?station-code={$stationCode}",
             ['station_id' => $stationCode]
         );
     }
 
-    public function getStationDetails(string $stationCode): array|null
+    public function getStationDetails(string $stationCode): ?array
     {
         return $this->safeApiCall(
-            "Station Details",
+            'Station Details',
             "/station/station-details?station-code={$stationCode}&show-subroutes=1",
             ['station_id' => $stationCode]
         );
     }
 
-    public function getRoutesOnStation(string $stationCode): array|null
+    public function getRoutesOnStation(string $stationCode): ?array
     {
         return $this->safeApiCall(
-            "Routes On Station",
+            'Routes On Station',
             "/station/routes-on-station?station-code={$stationCode}",
             ['station_id' => $stationCode]
         );
@@ -49,31 +49,33 @@ class LppApiService
     {
         try {
             $response = $this->callApi('/station/arrival?station-code=600011');
+
             return (bool) $response->successful();
         } catch (\Exception $e) {
-            Log::error('LPP API Ping failed: ' . $e->getMessage());
+            Log::error('LPP API Ping failed: '.$e->getMessage());
+
             return false;
         }
     }
 
-    public function getAllStations(): array|null
+    public function getAllStations(): ?array
     {
         return $this->safeApiCall(
-            "All Stations",
-            "/station/station-details?show-subroutes=1",
+            'All Stations',
+            '/station/station-details?show-subroutes=1',
             []
         );
     }
 
-    public function getStationsInRange(float $latitude, float $longitude, int $radius = 500): array|null
+    public function getStationsInRange(float $latitude, float $longitude, int $radius = 500): ?array
     {
         return $this->safeApiCall(
-            "Stations In Range",
+            'Stations In Range',
             "/station/stations-in-range?latitude={$latitude}&longitude={$longitude}&radius={$radius}",
             [
                 'latitude' => $latitude,
                 'longitude' => $longitude,
-                'radius' => $radius
+                'radius' => $radius,
             ]
         );
     }
@@ -82,31 +84,34 @@ class LppApiService
     // UTILITY
     //
 
-    private function safeApiCall(string $operation, string $endpoint, array $context = []): array|null
+    private function safeApiCall(string $operation, string $endpoint, array $context = []): ?array
     {
         try {
-            $cacheKey = "lpp_api_" . md5($endpoint . 'GET');
+            $cacheKey = 'lpp_api_'.md5($endpoint.'GET');
 
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$this->apiKey}",
             ])->get("{$this->baseUrl}/{$endpoint}");
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error("LPP API {$operation} failed", [
                     ...$context,
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
             $data = $response->json();
+
             // Only cache successful responses
             return Cache::remember($cacheKey, 30, function () use ($data) {
                 return $data['data'];
             });
         } catch (\Exception $e) {
-            Log::error("LPP API {$operation} failed: " . $e->getMessage(), $context);
+            Log::error("LPP API {$operation} failed: ".$e->getMessage(), $context);
+
             return null;
         }
     }

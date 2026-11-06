@@ -28,6 +28,7 @@ class GenerateFakeStatsSeeder extends Seeder
 
         if ($stations->isEmpty()) {
             $this->command->warn('No stations found in database. Please run LoadStations seeder first.');
+
             return;
         }
 
@@ -70,7 +71,7 @@ class GenerateFakeStatsSeeder extends Seeder
                 // "Both directions" views - typically 30-50% of regular views
                 // Only generate if there are regular views
                 if ($stationViews > 0) {
-                    $bothDirectionsViews = (int)($stationViews * (rand(30, 50) / 100));
+                    $bothDirectionsViews = (int) ($stationViews * (rand(30, 50) / 100));
                     if ($bothDirectionsViews > 0) {
                         $this->setPageViews($dateKey, "station_{$code}_all", $bothDirectionsViews);
                         $generatedKeys++;
@@ -80,7 +81,7 @@ class GenerateFakeStatsSeeder extends Seeder
 
             // Show progress every 5 days
             if (($i + 1) % 5 === 0) {
-                $this->command->info("Generated stats for " . ($i + 1) . " days...");
+                $this->command->info('Generated stats for '.($i + 1).' days...');
             }
         }
 
@@ -90,8 +91,6 @@ class GenerateFakeStatsSeeder extends Seeder
 
     /**
      * Reset all existing stats by deleting all stats keys
-     *
-     * @return void
      */
     private function resetAllStats(): void
     {
@@ -102,10 +101,11 @@ class GenerateFakeStatsSeeder extends Seeder
 
             if (empty($keys)) {
                 $this->command->info('No existing stats found to reset.');
+
                 return;
             }
 
-            $this->command->info("Found " . count($keys) . " stat keys to delete...");
+            $this->command->info('Found '.count($keys).' stat keys to delete...');
 
             // Delete all stats keys
             foreach ($keys as $key) {
@@ -114,17 +114,14 @@ class GenerateFakeStatsSeeder extends Seeder
                 Redis::del($cleanKey);
             }
 
-            $this->command->info("Deleted " . count($keys) . " stat keys");
+            $this->command->info('Deleted '.count($keys).' stat keys');
         } catch (\Exception $e) {
-            $this->command->error('Failed to reset stats: ' . $e->getMessage());
+            $this->command->error('Failed to reset stats: '.$e->getMessage());
         }
     }
 
     /**
      * Remove Redis prefix from a key if present
-     *
-     * @param string $key
-     * @return string
      */
     private function removePrefix(string $key): string
     {
@@ -142,10 +139,9 @@ class GenerateFakeStatsSeeder extends Seeder
     /**
      * Set page views for a specific date and page
      *
-     * @param string $dateKey Date in Y_m_d format
-     * @param string $page Page identifier
-     * @param int $views Number of views
-     * @return void
+     * @param  string  $dateKey  Date in Y_m_d format
+     * @param  string  $page  Page identifier
+     * @param  int  $views  Number of views
      */
     private function setPageViews(string $dateKey, string $page, int $views): void
     {
