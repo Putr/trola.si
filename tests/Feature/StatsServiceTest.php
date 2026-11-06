@@ -38,8 +38,7 @@ it('aggregates a day with totals, difference from the weekday average and year-o
 });
 
 it('counts station views under the production key prefix', function () {
-    config(['database.redis.options.prefix' => 'trolasi_database_']);
-    Redis::purge();
+    useRedisPrefix('trolasi_database_');
     $date = now()->format('Y_m_d');
     app(StatsService::class)->trackPageView('station_600011');
     app(StatsService::class)->trackPageView('station_600011');
@@ -206,9 +205,9 @@ describe('stats:migrate-to-hashes', function () {
     });
 
     it('works under the production key prefix', function () {
-        config(['database.redis.options.prefix' => 'trolasi_database_']);
-        Redis::purge();
+        useRedisPrefix('trolasi_database_');
         seedLegacy();
+        expect(rawRedisKeys())->each->toStartWith('trolasi_database_');
         Redis::hincrby('stats_day_2026_11_01', 'home', 2);
 
         $this->artisan('stats:migrate-to-hashes')
@@ -235,3 +234,23 @@ describe('stats:migrate-to-hashes', function () {
         $this->artisan('stats:migrate-to-hashes --execute')->assertFailed();
     });
 });
+
+/**
+ * Rebuild the Redis manager with a key prefix; changing config alone keeps the old connection.
+ */
+function useRedisPrefix(string $prefix): void
+{
+    config(['database.redis.options.prefix' => $prefix]);
+    app()->forgetInstance('redis');
+    Redis::clearResolvedInstance('redis');
+}
+
+/**
+ * Every key in the test database as Redis stores it (with any prefix).
+ *
+ * @return list<string>
+ */
+function rawRedisKeys(): array
+{
+    return Redis::connection()->client()->executeRaw(['KEYS', '*']);
+}

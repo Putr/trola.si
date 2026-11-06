@@ -57,7 +57,8 @@ LUA;
 
         try {
             do {
-                $result = Redis::scan($cursor, ['match' => 'stats_????_??_??_*', 'count' => self::SCAN_BATCH]);
+                // Predis prefixes command keys but not SCAN's MATCH pattern, so add it here.
+                $result = Redis::scan($cursor, ['match' => $prefix.'stats_????_??_??_*', 'count' => self::SCAN_BATCH]);
                 if (! is_array($result)) {
                     break;
                 }
@@ -100,6 +101,10 @@ LUA;
 
         $verb = $execute ? 'folded' : 'would fold';
         $this->info("Keys {$verb}: {$keys}; dates: ".count($dates)."; total views: {$views}.");
+
+        if ($keys === 0) {
+            $this->warn("No legacy keys found. On a first run that means a wrong Redis prefix (now '{$prefix}').");
+        }
 
         if ($errors > 0) {
             $this->error("{$errors} keys failed; re-run to retry them.");
