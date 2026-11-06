@@ -60,3 +60,19 @@ it('renders a station page without arrivals when the API is down', function () {
 
     $this->get('/600011')->assertOk()->assertSee('Ni napovedanih avtobusov');
 });
+
+it('gives the full station download a longer timeout than page requests', function () {
+    $timeouts = [];
+    Http::fake(function ($request, array $options) use (&$timeouts) {
+        $timeouts[parse_url($request->url(), PHP_URL_PATH)] = $options['timeout'];
+
+        return Http::response(['success' => true, 'data' => []]);
+    });
+
+    $api = app(LppApiService::class);
+    $api->getAllStations();
+    $api->getStationArrivals('600011');
+
+    expect($timeouts['/api/station/station-details'])->toBeGreaterThanOrEqual(60)
+        ->and($timeouts['/api/station/arrival'])->toBe(5);
+});

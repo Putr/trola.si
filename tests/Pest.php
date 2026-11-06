@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
+use Tests\TestCase;
 
 /**
  * Never talk to the live LPP API, and start every test with an empty test Redis.
@@ -19,11 +20,11 @@ function isolateExternalServices(): void
     Redis::flushdb();
 }
 
-pest()->extend(Tests\TestCase::class)
+pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(fn () => isolateExternalServices())
     ->in('Feature');
 
-pest()->extend(Tests\TestCase::class)
+pest()->extend(TestCase::class)
     ->beforeEach(fn () => isolateExternalServices())
     ->in('Unit');

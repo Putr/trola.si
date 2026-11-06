@@ -28,8 +28,9 @@ class AggregateStats extends Command
             for ($i = 0; $i < $days; $i++) {
                 $date = $today->copy()->subDays($i)->format('Y_m_d');
 
-                // Today is always recalculated; past days only when missing or forced.
-                if ($i === 0 || $this->option('force') || $stats->getAggregatedDay($date) === null) {
+                // Today and yesterday (its last hour lands after the 23:00 run) are always
+                // recalculated; older days only when missing or forced.
+                if ($i <= 1 || $this->option('force') || $stats->getAggregatedDay($date) === null) {
                     $stats->aggregateDay($date, forceRecalculate: true);
                     $aggregated++;
                 }

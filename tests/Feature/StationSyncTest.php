@@ -130,3 +130,15 @@ it('warms the cache for every station', function () {
 
     expect(app(StationRepository::class)->findByCode('600011')->name)->toBe('Novo ime');
 });
+
+it('pairs names that differ only in case, accents or trailing spaces, as MySQL did before', function () {
+    fakeAllStations([
+        ['id' => 1, 'code' => '800011', 'name' => 'Šmartinska'],
+        ['id' => 2, 'code' => '800015', 'name' => 'smartinska '],
+    ]);
+
+    $this->seed(LoadStations::class);
+
+    expect(Station::find(1))->opposite_station_id->toBe(2)->is_direction_to_center->toBeTrue()
+        ->and(Station::find(2))->opposite_station_id->toBe(1);
+});

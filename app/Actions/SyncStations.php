@@ -6,6 +6,7 @@ use App\Models\Station;
 use App\Repositories\StationRepository;
 use App\Services\LppApiService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -85,18 +86,29 @@ class SyncStations
      */
     private function pairByName(array &$rows): void
     {
+        $keys = array_map(fn (array $row): string => $this->nameKey($row['name']), $rows);
+
         foreach ($rows as $id => $row) {
-            if ($rows[$id]['opposite_station_id'] !== null || $row['name'] === '') {
+            if ($rows[$id]['opposite_station_id'] !== null || $keys[$id] === '') {
                 continue;
             }
 
             foreach ($rows as $otherId => $other) {
-                if ($otherId !== $id && $other['opposite_station_id'] === null && $other['name'] === $row['name']) {
+                if ($otherId !== $id && $other['opposite_station_id'] === null && $keys[$otherId] === $keys[$id]) {
                     $this->link($rows, $id, $otherId);
                     break;
                 }
             }
         }
+    }
+
+    /**
+     * Compare names the way MySQL's utf8mb4_unicode_ci did when pairing ran in SQL:
+     * ignoring case, accents and surrounding spaces.
+     */
+    private function nameKey(string $name): string
+    {
+        return Str::lower(Str::ascii(trim($name)));
     }
 
     /**

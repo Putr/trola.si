@@ -15,6 +15,9 @@ export default defineConfig(({ command, mode }) => {
             }),
         ],
         build: {
+            // Keep Vite 6's browser floor: Vite 8's default (Safari 16.4 / Chrome 111) would drop
+            // older phones and Android WebViews, and the site must load on any phone.
+            target: ['es2020', 'chrome87', 'edge88', 'firefox78', 'safari14'],
             // Only generate sourcemaps in development
             sourcemap: !isProduction,
             rollupOptions: {

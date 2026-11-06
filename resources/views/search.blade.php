@@ -62,7 +62,7 @@ avtobusov LPP.')
                 class="block bg-white shadow-md rounded-lg p-4 hover:shadow-lg transition-shadow duration-150">
                 <div class="flex items-center justify-between gap-4">
                     <div class="flex items-center gap-4">
-                        <div class="shrink-0">
+                        <div class="flex-shrink-0">
                             <div class="flex items-center justify-center w-14 h-14">
                                 @if($station->is_direction_to_center === true)
                                 <img src="/imgs/bullseye-to_small.png" alt="V center" class="w-8">

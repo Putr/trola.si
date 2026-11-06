@@ -12,7 +12,7 @@
     <div class="flex items-center justify-between">
         <div class="flex items-center flex-1 min-w-0">
             <!-- Rank Badge -->
-            <div class="shrink-0 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-bold mr-3">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-bold mr-3">
                 {{ $rank }}
             </div>
             

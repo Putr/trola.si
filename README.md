@@ -20,7 +20,7 @@ See it live at [trola.si](https://trola.si).
 
 ## Stack
 
-Laravel 13 on PHP 8.4+, MySQL 8, Redis, Blade + Tailwind CSS 4 + a little vanilla JS (Vite 8).
+Laravel 13 on PHP 8.4+, MySQL 8, Redis, Blade + Tailwind CSS 3 + a little vanilla JS (Vite 8).
 
 ## Prerequisites
 

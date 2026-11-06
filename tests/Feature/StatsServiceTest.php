@@ -99,3 +99,15 @@ it('still renders pages when Redis is down', function () {
 
     $this->get('/navodila')->assertOk();
 });
+
+it('includes the last hour of yesterday in the nightly run', function () {
+    $this->travelTo('2026-11-04 23:00');
+    Redis::set('stats_2026_11_04_home', 3);
+    $this->artisan('stats:aggregate --today-only')->assertSuccessful();
+
+    Redis::set('stats_2026_11_04_home', 5); // views between 23:00 and midnight
+    $this->travelTo('2026-11-05 02:00');
+    $this->artisan('stats:aggregate --days=30')->assertSuccessful();
+
+    expect(app(StatsService::class)->getAggregatedDay('2026_11_04')['home'])->toBe(5);
+});

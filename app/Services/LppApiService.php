@@ -20,6 +20,9 @@ class LppApiService
 
     private const TIMEOUT_SECONDS = 5;
 
+    /** The full station list is the largest payload and only fetched by the nightly sync. */
+    private const SYNC_TIMEOUT_SECONDS = 60;
+
     /** Station used to check that the API responds (Bavarski dvor). */
     private const PING_STATION_CODE = '600011';
 
@@ -55,7 +58,7 @@ class LppApiService
      */
     public function getAllStations(): ?array
     {
-        return $this->get('/station/station-details', ['show-subroutes' => 1], cache: false);
+        return $this->fetch('/station/station-details', ['show-subroutes' => 1], self::SYNC_TIMEOUT_SECONDS);
     }
 
     public function ping(): bool
@@ -92,10 +95,10 @@ class LppApiService
      * @param  array<string, scalar>  $query
      * @return array<mixed>|null
      */
-    private function fetch(string $path, array $query): ?array
+    private function fetch(string $path, array $query, int $timeout = self::TIMEOUT_SECONDS): ?array
     {
         try {
-            $response = $this->client()->get(ltrim($path, '/'), $query);
+            $response = $this->client()->timeout($timeout)->get(ltrim($path, '/'), $query);
         } catch (ConnectionException $e) {
             Log::warning('LPP API unreachable', ['path' => $path, 'query' => $query, 'error' => $e->getMessage()]);
 
@@ -122,7 +125,6 @@ class LppApiService
     {
         return Http::baseUrl(rtrim($this->baseUrl, '/').'/')
             ->withToken($this->apiKey)
-            ->acceptJson()
-            ->timeout(self::TIMEOUT_SECONDS);
+            ->acceptJson();
     }
 }

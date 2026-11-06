@@ -22,7 +22,7 @@
                             {{ $arrival['routeDirectionName'] }}
                         </div>
                         <div
-                            class="text-2xl bg-gray-200 py-4 w-22 min-w-22 font-bold text-emerald-700 flex justify-center">
+                            class="text-2xl bg-gray-200 py-4 w-22 min-w-[5.5rem] font-bold text-emerald-700 flex justify-center">
                             <div
                                 class="border-2 border-emerald-700 rounded-full w-14 h-14 flex items-center justify-center text-2xl font-bold">
                                 {{ $arrival['routeName'] }}
@@ -33,7 +33,7 @@
                     <div class="block md:hidden w-1/3 pl-2 md:pl-4">
                         <div class="flex">
                             <div
-                                class="text-left w-22 h-22 min-w-22 bg-gray-200 flex items-center justify-center {{ isset($arrival['etas'][0]) && $arrival['etas'][0] <= 9 ? 'font-bold text-4xl' : 'font-normal text-2xl' }}">
+                                class="text-left w-22 h-22 min-w-[5.5rem] bg-gray-200 flex items-center justify-center {{ isset($arrival['etas'][0]) && $arrival['etas'][0] <= 9 ? 'font-bold text-4xl' : 'font-normal text-2xl' }}">
                                 @if(isset($arrival['etas'][0]))
                                 {{ $arrival['etas'][0] }}'
                                 @else
@@ -45,7 +45,7 @@
                     <div class="hidden md:block w-1/2 pl-2 md:pl-4">
                         <div class="flex">
                             <div
-                                class="text-4xl font-bold text-left w-22 h-22 min-w-22 bg-gray-200 flex items-center justify-center">
+                                class="text-4xl font-bold text-left w-22 h-22 min-w-[5.5rem] bg-gray-200 flex items-center justify-center">
                                 @if($arrival['etaMin'] !== null)
                                 {{ $arrival['etaMin'] }}'
                                 @else

@@ -28,7 +28,7 @@ controller methods). When you touch an area, leave it better and covered by test
 
 ## Stack
 
-- **PHP 8.4+ / Laravel 13**, Blade + Tailwind CSS 4 + vanilla JS via Vite 8 (no axios, no framework)
+- **PHP 8.4+ / Laravel 13**, Blade + Tailwind CSS 3 + vanilla JS via Vite 8 (no axios, no framework)
 - **MySQL 8**: one real table, `stations` (with a FULLTEXT index on `name`)
 - **Redis** (predis 3) for cache, sessions, queue and the page-view counters
 - **Pest 4** for tests, **Larastan** level 5 (`composer stan`)
@@ -113,8 +113,9 @@ These are the same rules as in the other Laravel projects:
 
 - Since Laravel 12, `@context` in JSON-LD is parsed as a Blade directive; write
   `@@context`.
-- Tailwind 4 utilities live in a cascade layer, so unlayered CSS (e.g. the critical `<style>` in
-  `layout.blade.php`) overrides them regardless of specificity.
+- Browser floor is deliberate: Tailwind stays on v3 (v4 needs `@layer` + `oklch`, i.e. Safari
+  16.4 / Chrome 111, leaving older iPhones unstyled) and `vite.config.js` pins the build target
+  to Vite 6's old default. Don't raise either without deciding to drop those phones.
 - Any HTML/JS change must still work inside the Android WebView.
 
 ===
