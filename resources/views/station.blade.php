@@ -9,7 +9,7 @@
 <!-- Station Specific Structured Data -->
 <script type="application/ld+json">
     {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "BusStation",
     "name": "{{ $station->name }}",
     "address": {
