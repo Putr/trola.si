@@ -1,0 +1,23 @@
+# Throwaway MySQL + Redis for the test suite (run on the host: `composer test:up`).
+services:
+    mysql:
+        image: mysql:8.4
+        environment:
+            MYSQL_ROOT_PASSWORD: testing
+            MYSQL_DATABASE: trola_testing
+        ports:
+            - "127.0.0.1:33306:3306"
+        tmpfs:
+            - /var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ptesting"]
+            interval: 2s
+            retries: 30
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "127.0.0.1:63379:6379"
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 2s
+            retries: 30
