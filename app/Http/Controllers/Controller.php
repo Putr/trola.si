@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Station;
+use App\Repositories\StationRepository;
 use App\Services\LppApiService;
 use App\Services\StatsService;
-use App\Traits\CachesStations;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
@@ -15,13 +15,13 @@ use Illuminate\Support\Facades\Request as RequestFacade;
 
 class Controller extends BaseController
 {
-    use AuthorizesRequests, CachesStations, ValidatesRequests;
+    use AuthorizesRequests, ValidatesRequests;
 
     private LppApiService $lppApiService;
 
     private StatsService $statsService;
 
-    public function __construct(LppApiService $lppApiService, StatsService $statsService)
+    public function __construct(LppApiService $lppApiService, StatsService $statsService, private StationRepository $stations)
     {
         $this->lppApiService = $lppApiService;
         $this->statsService = $statsService;
@@ -59,7 +59,7 @@ class Controller extends BaseController
     public function show(string $stopId)
     {
         // Try to get station from cache first
-        $station = $this->getStationFromCache($stopId);
+        $station = $this->stations->findByCode($stopId);
 
         if (! $station) {
             $this->trackPageView('not_found');
@@ -75,7 +75,7 @@ class Controller extends BaseController
         // Get opposite station code if it exists
         $oppositeCode = null;
         if ($station->opposite_station_id) {
-            $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
+            $oppositeStation = $this->stations->findById($station->opposite_station_id);
             $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
         }
         $hasOppositeStation = ! is_null($oppositeCode);
@@ -113,7 +113,7 @@ class Controller extends BaseController
         $this->trackPageView('station_'.$stopId.'_all');
 
         // Try to get station from cache first
-        $station = $this->getStationFromCache($stopId);
+        $station = $this->stations->findByCode($stopId);
 
         if (! $station) {
             return view('station-not-found');
@@ -125,7 +125,7 @@ class Controller extends BaseController
         // Get opposite station code if it exists
         $oppositeCode = null;
         if ($station->opposite_station_id) {
-            $oppositeStation = $this->getStationByIdFromCache($station->opposite_station_id);
+            $oppositeStation = $this->stations->findById($station->opposite_station_id);
             $oppositeCode = $oppositeStation ? $oppositeStation->code : null;
         }
         $hasOppositeStation = ! is_null($oppositeCode);
@@ -296,6 +296,16 @@ class Controller extends BaseController
             ],
             'useLocation' => true,
         ]);
+    }
+
+    /**
+     * Temporary home of the 30s arrivals cache until Task 5 moves arrivals into ArrivalsService.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getStationArrivalsFromCache(Station $station): array
+    {
+        return Cache::remember("arrivals:{$station->code}", 30, fn (): array => $station->arrivals);
     }
 
     public function help()

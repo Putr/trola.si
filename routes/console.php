@@ -3,10 +3,10 @@
 use Illuminate\Support\Facades\Schedule;
 
 // Schedule tasks
-Schedule::command('db:seed')->dailyAt('03:00');
+Schedule::command('stations:sync')->dailyAt('03:00')->withoutOverlapping();
 Schedule::command('sitemap:generate')->dailyAt('03:30');
 
-// Run station cache warming at 3 AM every day
+// Refresh cached station lookups after the nightly sync
 Schedule::command('stations:warm-cache')
     ->dailyAt('03:20')
     ->withoutOverlapping()

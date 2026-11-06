@@ -63,7 +63,8 @@ class LppApiService
         return $this->safeApiCall(
             'All Stations',
             '/station/station-details?show-subroutes=1',
-            []
+            [],
+            cacheable: false,
         );
     }
 
@@ -84,7 +85,7 @@ class LppApiService
     // UTILITY
     //
 
-    private function safeApiCall(string $operation, string $endpoint, array $context = []): ?array
+    private function safeApiCall(string $operation, string $endpoint, array $context = [], bool $cacheable = true): ?array
     {
         try {
             $cacheKey = 'lpp_api_'.md5($endpoint.'GET');
@@ -104,6 +105,9 @@ class LppApiService
             }
 
             $data = $response->json();
+            if (! $cacheable) {
+                return $data['data'];
+            }
 
             // Only cache successful responses
             return Cache::remember($cacheKey, 30, function () use ($data) {
