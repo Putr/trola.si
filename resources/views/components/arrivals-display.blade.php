@@ -32,7 +32,7 @@
                 <div class="w-2/3 md:w-1/2 pl-2 md:pl-4">
                     <div class="flex">
                         <div
-                            class="text-4xl font-bold text-left w-22 h-22 min-w-[5.5rem] bg-gray-200 flex items-center justify-center">
+                            class="text-4xl font-bold text-left w-22 h-22 min-w-22 bg-gray-200 flex items-center justify-center">
                             @if($arrival['etaMin'] !== null)
                             {{ $arrival['etaMin'] }}'
                             @else

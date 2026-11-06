@@ -1,4 +1,3 @@
-import './bootstrap';
 
 // Import location modules
 import { CONFIG } from './location/constants.js';

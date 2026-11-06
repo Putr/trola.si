@@ -28,30 +28,42 @@ controller methods). When you touch an area, leave it better and covered by test
 
 ## Stack
 
-- **PHP / Laravel 11** (target: Laravel 13, PHP 8.4+), Blade + Tailwind CSS 3 + vanilla JS via Vite
+- **PHP 8.4+ / Laravel 13**, Blade + Tailwind CSS 4 + vanilla JS via Vite 8 (no axios, no framework)
 - **MySQL 8**: one real table, `stations` (with a FULLTEXT index on `name`)
-- **Redis** (predis) for cache, sessions, queue and the page-view counters
-- **Pest 3** for tests. There are currently no real tests, only the scaffold examples.
+- **Redis** (predis 3) for cache, sessions, queue and the page-view counters
+- **Pest 4** for tests, **Larastan** level 5 (`composer stan`)
 - **Laravel Boost** (MCP server, `php artisan boost:mcp`, configured in `.mcp.json`)
 - Docker Compose for dev/prod (`docker-compose.yml.*-example`, `Dockerfile.example`). The real
   `docker-compose.yml` / `Dockerfile` are gitignored, per-environment copies.
+- Config files are published and their Redis/cache prefixes and session cookie name are kept on
+  purpose: Laravel 13 changed the defaults, and changing them would orphan production keys.
 
 ## How it works
 
-- **Routes** (`routes/web.php`): `/`, `/search`, `/geosearch`, `/navodila` (help), `/stats`, then
-  the catch-all station routes `/{code}` and `/{code}/all`. The catch-alls must stay last.
-- **Station data** comes from the LPP API (`app/Services/LppApiService.php`, config in
-  `config/lpp.php`, `LPP_API_URL` + `LPP_API_KEY`). The key is requested from dpo@lpp.si.
-- **Station refresh**: `database/seeders/LoadStations.php` (run via scheduled `db:seed` daily) pulls
-  all stations, then *infers* direction and opposite-station pairs. It pairs stations by
-  identical name first, then by sequential codes, and treats codes ending in `1` as
-  "toward centre". This heuristic is the source of most direction bugs.
-- **Arrivals** are fetched live per request (`Station::getArrivalsAttribute`) and cached for 30s
-  (`app/Traits/CachesStations.php`).
-- **Stats**: `StatsService::trackPageView` increments `stats:{Y_m_d}:{page}` Redis keys. The
-  `stats:aggregate` command builds daily/weekly/monthly aggregates. `/stats` renders them.
-- **Scheduler** (`routes/console.php`): stats aggregation (02:00 + hourly), `db:seed` (03:00),
-  station cache warm (03:20), sitemap (03:30). Production needs the `schedule:run` cron.
+- **Routes** (`routes/web.php`, all named): `index`, `search`, `geosearch`, `help` (`/navodila`),
+  `stats`, then `station.both-directions` (`/{code}/all`) and `station` (`/{code}`), which only
+  match numeric codes and must stay last. Unknown codes return a 404 `station-not-found` view.
+- **Controllers** are thin: `PageController`, `SearchController`, `StationController`,
+  `StatsController`. Direction input goes through `App\Enums\Direction`, search terms through
+  `App\Support\FulltextQuery`, coordinates through `GeosearchRequest`.
+- **LPP API**: `App\Services\LppApiService` (config in `config/lpp.php`, `LPP_API_URL` +
+  `LPP_API_KEY`, requested from dpo@lpp.si). Successful responses are cached for 30s; failures
+  are logged and return `null`. `getAllStations()` is never cached.
+- **Stations**: `App\Repositories\StationRepository` caches lookups under `station:code:{code}`
+  and `station:id:{id}`; `forget()` clears both.
+- **Station refresh**: `App\Actions\SyncStations` (`php artisan stations:sync`, scheduled 03:00)
+  pulls all stations, then *infers* opposite pairs and direction: identical name first, then
+  sequential codes (±1); in a pair the code ending in `1` heads toward the centre, else the
+  lower code. Everything is written in one transaction, then the cache is cleared. An empty API
+  response changes nothing. `db:seed` delegates to the same action.
+- **Arrivals**: `App\Services\ArrivalsService::forStation()` turns the LPP payload into rows
+  for the `arrivals-display` components.
+- **Stats**: `PageViewTracker` skips auto-reloads (the unencrypted `autoreload` cookie) and calls
+  `StatsService::trackPageView`, which increments `stats_{Y_m_d}_{page}` and never throws.
+  `stats:aggregate` writes `stats_agg_day_{Y_m_d}` and `stats_avg_dow_{n}`; `/stats` reads them
+  and is cached for 10 minutes. These key formats hold production history: don't change them.
+- **Scheduler** (`routes/console.php`): stats aggregation (02:00 + hourly), `stations:sync`
+  (03:00), station cache warm (03:20), sitemap (03:30). Production needs the `schedule:run` cron.
 
 ## Commands
 
@@ -60,12 +72,18 @@ PHP and Composer run on the host (PHP 8.5). MySQL and Redis come from Docker Com
 ```bash
 composer install && npm install
 npm run dev                     # or npm run build
-php artisan migrate && php artisan db:seed   # loads stations from the LPP API
+php artisan migrate && php artisan stations:sync   # loads stations from the LPP API
 php artisan app:lpp:ping        # check LPP API connectivity
-php artisan stats:aggregate     # rebuild stats aggregates
+php artisan stats:aggregate     # rebuild stats aggregates (--force to redo past days)
+composer test:up                # throwaway MySQL (33306) + Redis (63379) for the tests
 php artisan test --compact [--filter=...]
+composer stan                   # Larastan
 vendor/bin/pint --dirty         # format changed PHP files
 ```
+
+Tests refuse to run unless Redis is the test instance (port 63379), because they flush it.
+After changing routes or Blade, clear stale caches (`php artisan route:clear`, `view:clear`):
+a cached route file in `bootstrap/cache` once hid broken views from the whole suite.
 
 ## How we work here
 
@@ -93,9 +111,10 @@ These are the same rules as in the other Laravel projects:
 
 ## Gotchas
 
-- `/{code}` and `/{code}/all` match *anything*, so validate the code before doing work.
-- Cache keys `station:{code}` and `station:{id}` share one namespace, and the seeder only
-  invalidates by code.
+- Since Laravel 12, `@context` in JSON-LD is parsed as a Blade directive; write
+  `@@context`.
+- Tailwind 4 utilities live in a cascade layer, so unlayered CSS (e.g. the critical `<style>` in
+  `layout.blade.php`) overrides them regardless of specificity.
 - Any HTML/JS change must still work inside the Android WebView.
 
 ===

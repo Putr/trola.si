@@ -18,66 +18,67 @@ The focus of this project was:
 
 See it live at [trola.si](https://trola.si).
 
+## Stack
+
+Laravel 13 on PHP 8.4+, MySQL 8, Redis, Blade + Tailwind CSS 4 + a little vanilla JS (Vite 8).
+
 ## Prerequisites
 
-Before deploying the application, you'll need:
-
-1. LPP API Key - Send an email to <dpo@lpp.si> requesting an API key for accessing the LPP (Ljubljana Public Transport) API.
-   Once received, add it to your `.env` file as `LPP_API_KEY`.
+1. An LPP API key. Email <dpo@lpp.si> to request one, then set it as `LPP_API_KEY` in `.env`.
+2. PHP 8.4 or newer, Composer, Node 20+, and MySQL 8 + Redis (the Docker Compose examples provide both).
 
 ## Deployment
 
-1. Copy the configuration files and modify them for your environment:
+1. Copy the configuration files and adjust them for your environment:
 
    ```bash
-   cp .env.example .env
-   # Modify .env with your settings, including your LPP_API_KEY
+   cp .env.example .env                                   # set LPP_API_KEY and the DB/Redis settings
+   cp docker-compose.yml.prod-example docker-compose.yml  # or .dev-example
+   cp Dockerfile.example Dockerfile
+   docker compose up -d
    ```
 
-2. Copy, review and adjust as needed:
-   - `docker-compose.yml`
-   - `Dockerfile`
-
-3. Start the Docker containers:
+2. Install dependencies and build the frontend:
 
    ```bash
-   docker-compose up -d
+   composer install --no-dev --optimize-autoloader
+   npm ci && npm run build
    ```
 
-4. Install and build frontend dependencies:
+3. Create the tables and load the stations from the LPP API:
 
    ```bash
-   npm install
-   npm run dev
+   php artisan migrate --force
+   php artisan stations:sync
    ```
 
-5. Install and set up PHP dependencies:
+   `stations:sync` pulls every station and infers which stations face each other and which
+   one heads toward the city centre. It changes nothing if the API is down.
+
+4. Run Laravel's scheduler every minute:
 
    ```bash
-   composer install
-   ```
-
-6. Run database migrations and seed initial data:
-
-   ```bash
-   php artisan migrate
-   php artisan db:seed
-   ```
-
-   This will:
-   - Create all necessary database tables
-   - Load bus station data from the LPP API
-
-7. Set up the cron job for automatic data updates:
-
-   ```bash
-   # Open crontab configuration
-   crontab -e
-
-   # Add this line to run Laravel's scheduler every minute
    * * * * * cd /path-to-your-project && php artisan schedule:run >> /dev/null 2>&1
    ```
 
-   This will:
-   - Run the database seeder daily at 4 AM to refresh station data
-   - Ensure your data stays up to date with the LPP API
+   It refreshes the stations daily at 03:00 (`stations:sync`), aggregates the anonymous page
+   counters (02:00 and hourly), warms the station cache and regenerates the sitemap.
+
+5. After every deploy, clear the compiled caches:
+
+   ```bash
+   php artisan optimize:clear && php artisan optimize
+   ```
+
+## Development
+
+```bash
+composer install && npm install
+npm run dev
+composer test:up   # start throwaway MySQL + Redis for the tests (docker-compose.testing.yml)
+composer test      # Pest
+composer stan      # Larastan
+vendor/bin/pint    # code style
+```
+
+The tests never call the real LPP API; responses are faked with `Http::fake()`.

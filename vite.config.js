@@ -22,9 +22,6 @@ export default defineConfig(({ command, mode }) => {
                     sourcemapExcludeSources: true,
                     // Production-only optimizations
                     ...(isProduction && {
-                        manualChunks: {
-                            vendor: ['axios'], // Add your major dependencies here
-                        },
                         chunkFileNames: 'assets/js/[name]-[hash].js',
                         entryFileNames: 'assets/js/[name]-[hash].js',
                         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',

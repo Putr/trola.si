@@ -72,7 +72,7 @@
         }
 
         body {
-            background-color: gray;
+            background-color: #fff;
         }
 
         .max-w-7xl {
@@ -121,7 +121,7 @@
         </div>
     </header>
 
-    <main class="mx-auto px-4 pb-16 flex-grow min-w-full">
+    <main class="mx-auto px-4 pb-16 grow min-w-full">
         @yield('content')
     </main>
 
