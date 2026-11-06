@@ -1,4 +1,4 @@
-FROM php:8.3-fpm
+FROM php:8.4-fpm
 
 ARG DOCKER_USER_ID
 
@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
     libimage-exiftool-perl
 
 # Install NodeJS
-RUN curl -sL https://deb.nodesource.com/setup_21.x | bash
+RUN curl -sL https://deb.nodesource.com/setup_24.x | bash
 #  If npm is not installed, uncomment this. This should make sure that the nodesource version is used, not the debian one.
 #  RUN echo 'Package: *\nPin: origin deb.nodesource.com\nPin-Priority: 600' > /etc/apt/preferences.d/nodesource
 RUN apt-get install -y nodejs

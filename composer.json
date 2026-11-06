@@ -1,29 +1,31 @@
 {
-    "name": "laravel/laravel",
+    "name": "putr/trola.si",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Real-time arrival times for Ljubljana city buses (LPP).",
     "keywords": [
-        "laravel",
-        "framework"
+        "lpp",
+        "ljubljana",
+        "bus"
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
-        "laravel/framework": "^11.9",
-        "laravel/tinker": "^2.9",
-        "predis/predis": "^2.2"
+        "php": "^8.4",
+        "laravel/framework": "^13.0",
+        "laravel/tinker": "^3.0",
+        "predis/predis": "^3.0"
     },
     "require-dev": {
-        "barryvdh/laravel-ide-helper": "^3.2",
-        "fakerphp/faker": "^1.23",
-        "laravel/boost": "^1.0",
-        "laravel/pail": "^1.1",
-        "laravel/pint": "^1.13",
-        "laravel/sail": "^1.26",
+        "barryvdh/laravel-ide-helper": "^3.6",
+        "fakerphp/faker": "^1.24",
+        "larastan/larastan": "^3.0",
+        "laravel/boost": "^2.0",
+        "laravel/pail": "^1.2",
+        "laravel/pint": "^1.24",
+        "laravel/sail": "^1.43",
         "mockery/mockery": "^1.6",
-        "nunomaduro/collision": "^8.1",
-        "pestphp/pest": "^3.5",
-        "pestphp/pest-plugin-laravel": "^3.0"
+        "nunomaduro/collision": "^8.6",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -66,6 +68,9 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "stan": [
+            "phpstan analyse --memory-limit=1G"
         ]
     },
     "extra": {
