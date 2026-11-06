@@ -142,7 +142,6 @@ class GenerateFakeStatsSeeder extends Seeder
      */
     private function setPageViews(string $dateKey, string $page, int $views): void
     {
-        $key = "stats_{$dateKey}_{$page}";
-        Redis::set($key, $views);
+        Redis::hset("stats_day_{$dateKey}", $page, $views);
     }
 }

@@ -13,7 +13,8 @@ use Throwable;
  * Anonymous page-view counters in Redis, and the aggregates shown on /stats.
  *
  * Key formats are frozen because production history lives in them:
- *  - stats_{Y_m_d}_{page}      raw counter per page per day
+ *  - stats_day_{Y_m_d}         hash per day, field = page id (home, search, geosearch,
+ *                              not_found, station_{code}, station_{code}_all), value = views
  *  - stats_agg_day_{Y_m_d}     JSON daily aggregate
  *  - stats_avg_dow_{1-7}       JSON rolling average per ISO weekday
  */
@@ -25,15 +26,13 @@ class StatsService
     /** Pages listed (besides stations) in the popular pages ranking. */
     private const RANKED_PAGES = ['home', 'search', 'geosearch', 'not_found'];
 
-    private const SCAN_BATCH = 500;
-
     /**
      * Count a page view. Never throws: a stats outage must not break the site.
      */
     public function trackPageView(string $page): void
     {
         try {
-            Redis::incr($this->buildKey(Carbon::now()->format('Y_m_d'), $page));
+            Redis::hincrby($this->dayKey(Carbon::now()->format('Y_m_d')), $page, 1);
         } catch (Throwable $e) {
             Log::warning('Failed to track page view: '.$e->getMessage(), ['page' => $page]);
         }
@@ -263,13 +262,12 @@ class StatsService
      */
     private function stationViewsForDate(string $date): array
     {
-        $prefix = $this->buildKey($date, '');
+        $counts = Redis::hgetall($this->dayKey($date));
         $views = [];
 
-        foreach ($this->scanKeys($this->buildKey($date, 'station_*')) as $key) {
-            $pageId = substr($key, strlen($prefix));
-            if (preg_match('/^station_\d+(?:_all)?$/', $pageId)) {
-                $views[$pageId] = (int) Redis::get($key);
+        foreach (is_array($counts) ? $counts : [] as $pageId => $count) {
+            if (preg_match('/^station_\d+(?:_all)?$/', (string) $pageId)) {
+                $views[(string) $pageId] = (int) $count;
             }
         }
 
@@ -317,7 +315,7 @@ class StatsService
 
     private function getPageViews(string $date, string $page): int
     {
-        return (int) Redis::get($this->buildKey($date, $page));
+        return (int) Redis::hget($this->dayKey($date), $page);
     }
 
     /**
@@ -331,35 +329,8 @@ class StatsService
         return is_array($data) ? $data : null;
     }
 
-    /**
-     * All keys matching a pattern, using SCAN so Redis is never blocked.
-     * Returned keys have the connection prefix stripped, ready for Redis::get().
-     *
-     * @return list<string>
-     */
-    private function scanKeys(string $pattern): array
+    private function dayKey(string $date): string
     {
-        $prefix = (string) config('database.redis.options.prefix', '');
-        $keys = [];
-        $cursor = 0;
-
-        do {
-            $result = Redis::scan($cursor, ['match' => $pattern, 'count' => self::SCAN_BATCH]);
-            if (! is_array($result)) {
-                break;
-            }
-
-            [$cursor, $batch] = $result;
-            foreach ($batch as $key) {
-                $keys[] = $prefix !== '' && str_starts_with($key, $prefix) ? substr($key, strlen($prefix)) : $key;
-            }
-        } while ((string) $cursor !== '0');
-
-        return array_values(array_unique($keys));
-    }
-
-    private function buildKey(string $date, string $page): string
-    {
-        return "stats_{$date}_{$page}";
+        return "stats_day_{$date}";
     }
 }

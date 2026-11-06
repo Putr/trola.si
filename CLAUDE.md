@@ -59,7 +59,10 @@ controller methods). When you touch an area, leave it better and covered by test
 - **Arrivals**: `App\Services\ArrivalsService::forStation()` turns the LPP payload into rows
   for the `arrivals-display` components.
 - **Stats**: `PageViewTracker` skips auto-reloads (the unencrypted `autoreload` cookie) and calls
-  `StatsService::trackPageView`, which increments `stats_{Y_m_d}_{page}` and never throws.
+  `StatsService::trackPageView`, which `HINCRBY`s field `{page}` (`home`, `station_{code}`, `station_{code}_all`, ...) of the
+  per-day hash `stats_day_{Y_m_d}` and never throws; reads are `HGET`/`HGETALL`, never SCAN.
+  Day hashes are kept forever (year-over-year). The old one-key-per-page format is folded in by
+  `stats:migrate-to-hashes --execute` (report-only without the flag; atomic, re-runnable).
   `stats:aggregate` writes `stats_agg_day_{Y_m_d}` and `stats_avg_dow_{n}`; `/stats` reads them
   and is cached for 10 minutes. These key formats hold production history: don't change them.
 - **Scheduler** (`routes/console.php`): stats aggregation (02:00 + hourly), `stations:sync`
