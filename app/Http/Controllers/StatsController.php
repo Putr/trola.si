@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StatsRequest;
 use App\Services\Stats\StatsInsights;
+use App\Support\FiltersLiveSince;
 use App\Support\StationName;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
@@ -24,7 +25,7 @@ class StatsController extends Controller
             'months' => $months,
             'list' => $list,
             'term' => $term,
-            'liveSince' => Carbon::parse((string) config('stats.filters_live_since'))->format('j. n. Y'),
+            'liveSince' => FiltersLiveSince::date()->format('j. n. Y'),
             'unavailable' => false,
         ];
 

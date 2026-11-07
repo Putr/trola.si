@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Station;
+use App\Services\Stats\StatsInsights;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 
@@ -125,4 +126,12 @@ it('still renders when Redis is down', function () {
     Redis::shouldReceive('mget', 'connection', 'get', 'hget', 'hgetall', 'set')->andThrow(new RuntimeException('Redis down'));
 
     $this->get('/stats')->assertOk()->assertSee('Statistika trenutno ni na voljo');
+});
+
+it('survives a malformed filters-live date', function () {
+    statsPageSeed();
+    config(['stats.filters_live_since' => 'garbage']);
+
+    $this->get('/stats')->assertOk()->assertDontSee('Statistika trenutno ni na voljo');
+    expect(app(StatsInsights::class)->trend(3)['live_since'])->toBe('2026-11-07');
 });

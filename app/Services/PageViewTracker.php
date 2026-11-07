@@ -51,6 +51,14 @@ class PageViewTracker
             return;
         }
 
-        $this->stats->trackPageView($page, $this->bots->isApp($userAgent));
+        $this->stats->trackPageView($page, $this->bots->isApp($userAgent) && $this->isHumanView($page));
+    }
+
+    /**
+     * The app share is measured against human views, so only those pages count towards it.
+     */
+    private function isHumanView(string $page): bool
+    {
+        return in_array($page, ['home', 'search', 'geosearch'], true) || str_starts_with($page, 'station_');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Stats;
 
 use App\Models\Station;
 use App\Services\StatsService;
+use App\Support\FiltersLiveSince;
 use App\Support\StationName;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Redis;
@@ -560,6 +561,6 @@ class StatsInsights
 
     private function liveSince(): Carbon
     {
-        return Carbon::parse((string) config('stats.filters_live_since'))->startOfDay();
+        return FiltersLiveSince::date();
     }
 }

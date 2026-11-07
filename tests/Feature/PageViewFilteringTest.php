@@ -85,3 +85,12 @@ it('counts everything when there is no IP data', function () {
 
     expect(todayHash())->toBe(['home' => '1']);
 });
+
+it('counts the app marker only on pages that are human views', function () {
+    $headers = ['User-Agent' => FILTER_WEBVIEW_UA];
+
+    $this->withHeaders($headers)->get(route('help'))->assertOk();
+    $this->withHeaders($headers)->get('/00000')->assertNotFound();
+
+    expect(todayHash())->toBe(['help' => '1', 'not_found' => '1']);
+});
