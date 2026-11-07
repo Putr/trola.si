@@ -1,0 +1,9 @@
+52.0.0.0	52.0.255.255	16509	US	AMAZON-02 - Amazon.com, Inc.
+73.0.0.0	73.255.255.255	7922	US	COMCAST-7922 - Comcast Cable Communications, LLC
+88.198.0.0	88.198.255.255	24940	DE	HETZNER-AS Hetzner Online GmbH
+93.103.0.0	93.103.127.255	3212	SI	SIOL-NET Telekom Slovenije, d.d.
+93.103.128.0	93.103.255.255	3212	SI	SIOL-NET Telekom Slovenije, d.d.
+104.16.0.0	104.31.255.255	13335	US	CLOUDFLARENET - Cloudflare, Inc.
+120.0.0.0	120.0.255.255	0	None	Not routed
+2600:1f00::	2600:1fff:ffff:ffff:ffff:ffff:ffff:ffff	16509	US	AMAZON-02 - Amazon.com, Inc.
+2a00:ee0::	2a00:ee0:ffff:ffff:ffff:ffff:ffff:ffff	3212	SI	SIOL-NET Telekom Slovenije, d.d.

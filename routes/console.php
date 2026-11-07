@@ -23,3 +23,8 @@ Schedule::command('stats:aggregate --today-only')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Refresh the iptoasn data used to filter datacenter and non-European traffic from the stats
+Schedule::command('stats:update-ip-data')
+    ->monthlyOn(1, '04:00')
+    ->withoutOverlapping();

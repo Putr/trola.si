@@ -65,6 +65,7 @@ controller methods). When you touch an area, leave it better and covered by test
   `stats:migrate-to-hashes --execute` (report-only without the flag; atomic, re-runnable).
   `stats:aggregate` writes `stats_agg_day_{Y_m_d}` and `stats_avg_dow_{n}`; `/stats` reads them
   and is cached for 10 minutes. These key formats hold production history: don't change them.
+- **IP filtering**: stats skip datacenter and non-European visitors using iptoasn.com `ip2asn-combined` (PDDL v1.0, public domain, no account). `stats:update-ip-data` (monthly, 04:00) compiles it into `storage/app/ipdata/ranges.php`; `App\Services\Stats\IpClassifier` binary-searches it in memory. A missing file means everything counts; IPs are never stored.
 - **Scheduler** (`routes/console.php`): stats aggregation (02:00 + hourly), `stations:sync`
   (03:00), station cache warm (03:20), sitemap (03:30). Production needs the `schedule:run` cron.
 
