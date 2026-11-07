@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\FilterReason;
 use App\Models\Station;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -14,12 +15,18 @@ use Throwable;
  *
  * Key formats are frozen because production history lives in them:
  *  - stats_day_{Y_m_d}         hash per day, field = page id (home, search, geosearch,
- *                              not_found, station_{code}, station_{code}_all), value = views
+ *                              not_found, station_{code}, station_{code}_all), value = views;
+ *                              also `app` (views from the Android app) and
+ *                              `filtered:{reload|bot|datacenter|foreign}` (dropped requests)
  *  - stats_agg_day_{Y_m_d}     JSON daily aggregate
  *  - stats_avg_dow_{1-7}       JSON rolling average per ISO weekday
  */
 class StatsService
 {
+    private const APP_FIELD = 'app';
+
+    private const FILTERED_PREFIX = 'filtered:';
+
     /** Pages counted on their own; station pages are summed separately. */
     private const PAGES = ['home', 'search', 'geosearch'];
 
@@ -27,14 +34,31 @@ class StatsService
     private const RANKED_PAGES = ['home', 'search', 'geosearch', 'not_found'];
 
     /**
-     * Count a page view. Never throws: a stats outage must not break the site.
+     * Count a page view, and an app view too when it came from the Android app.
+     * Never throws: a stats outage must not break the site.
      */
-    public function trackPageView(string $page): void
+    public function trackPageView(string $page, bool $fromApp = false): void
     {
         try {
-            Redis::hincrby($this->dayKey(Carbon::now()->format('Y_m_d')), $page, 1);
+            $key = $this->dayKey(Carbon::now()->format('Y_m_d'));
+            Redis::hincrby($key, $page, 1);
+            if ($fromApp) {
+                Redis::hincrby($key, self::APP_FIELD, 1);
+            }
         } catch (Throwable $e) {
             Log::warning('Failed to track page view: '.$e->getMessage(), ['page' => $page]);
+        }
+    }
+
+    /**
+     * Count a request that was dropped from the page views, by reason. Never throws.
+     */
+    public function trackFiltered(FilterReason $reason): void
+    {
+        try {
+            Redis::hincrby($this->dayKey(Carbon::now()->format('Y_m_d')), self::FILTERED_PREFIX.$reason->value, 1);
+        } catch (Throwable $e) {
+            Log::warning('Failed to track filtered view: '.$e->getMessage(), ['reason' => $reason->value]);
         }
     }
 
@@ -123,6 +147,8 @@ class StatsService
         $aggregated = [
             'date' => $carbonDate->format('Y-m-d'),
             ...$totals,
+            'app' => $this->getPageViews($date, self::APP_FIELD),
+            'filtered' => $this->filteredForDate($date),
             'diff_from_avg' => $diffFromAvg,
             'pct_from_avg' => $pctFromAvg,
             'yoy' => $this->yearOverYear($carbonDate, $totals),
@@ -188,6 +214,20 @@ class StatsService
         $totals['stations'] = $this->getStationViewsForDate($date);
 
         return $totals;
+    }
+
+    /**
+     * @param  string  $date  Y_m_d
+     * @return array{reload: int, bot: int, datacenter: int, foreign: int}
+     */
+    private function filteredForDate(string $date): array
+    {
+        return [
+            'reload' => $this->getPageViews($date, self::FILTERED_PREFIX.FilterReason::Reload->value),
+            'bot' => $this->getPageViews($date, self::FILTERED_PREFIX.FilterReason::Bot->value),
+            'datacenter' => $this->getPageViews($date, self::FILTERED_PREFIX.FilterReason::Datacenter->value),
+            'foreign' => $this->getPageViews($date, self::FILTERED_PREFIX.FilterReason::Foreign->value),
+        ];
     }
 
     /**

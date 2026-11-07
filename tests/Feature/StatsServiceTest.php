@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\FilterReason;
 use App\Models\Station;
 use App\Services\StatsService;
 use Carbon\CarbonInterface;
@@ -254,3 +255,45 @@ function rawRedisKeys(): array
 {
     return Redis::connection()->client()->executeRaw(['KEYS', '*']);
 }
+
+it('records app views and filtered reasons without touching page totals', function () {
+    $service = app(StatsService::class);
+    $service->trackPageView('station_600011', fromApp: true);
+    $service->trackPageView('station_600011');
+    $service->trackFiltered(FilterReason::Bot);
+    $service->trackFiltered(FilterReason::Bot);
+    $service->trackFiltered(FilterReason::Foreign);
+
+    $key = 'stats_day_'.now()->format('Y_m_d');
+    expect(Redis::hget($key, 'station_600011'))->toBe('2')
+        ->and(Redis::hget($key, 'app'))->toBe('1')
+        ->and(Redis::hget($key, 'filtered:bot'))->toBe('2')
+        ->and(Redis::hget($key, 'filtered:foreign'))->toBe('1');
+});
+
+it('aggregates app views and filtered counts, with zeros when absent', function () {
+    $service = app(StatsService::class);
+    $today = now()->format('Y_m_d');
+
+    expect($service->aggregateDay($today, forceRecalculate: true))
+        ->toMatchArray(['app' => 0, 'filtered' => ['reload' => 0, 'bot' => 0, 'datacenter' => 0, 'foreign' => 0]]);
+
+    $service->trackPageView('home', fromApp: true);
+    $service->trackFiltered(FilterReason::Reload);
+    $service->trackFiltered(FilterReason::Datacenter);
+    $service->trackFiltered(FilterReason::Datacenter);
+
+    expect($service->aggregateDay($today, forceRecalculate: true))
+        ->toMatchArray(['home' => 1, 'app' => 1, 'filtered' => ['reload' => 1, 'bot' => 0, 'datacenter' => 2, 'foreign' => 0]]);
+});
+
+it('keeps app and filtered fields out of station totals and popular pages', function () {
+    $service = app(StatsService::class);
+    $service->trackPageView('station_600011', fromApp: true);
+    $service->trackFiltered(FilterReason::Bot);
+
+    $today = now()->format('Y_m_d');
+    expect($service->getStationViewsForDate($today))->toBe(1)
+        ->and($service->aggregateDay($today, forceRecalculate: true)['stations'])->toBe(1)
+        ->and($service->getPopularPages()->keys()->all())->toBe(['station_600011']);
+});
