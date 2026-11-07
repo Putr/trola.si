@@ -127,7 +127,7 @@ class StatsInsights
      * The direction split uses single-direction page views only; "both directions" pages
      * say nothing about which way people travel.
      *
-     * @return array{name: string, codes: list<array{code: string, to_center: bool, share: ?float}>, per_day: float, change: ?float, rank: int, of: int, days: list<array{date: string, views: int, avg28: ?float}>}|null
+     * @return array{name: string, codes: list<array{code: string, to_center: ?bool, share: ?float}>, per_day: float, change: ?float, rank: int, of: int, days: list<array{date: string, views: int, avg28: ?float}>}|null
      */
     public function lookup(string $term): ?array
     {
@@ -457,7 +457,7 @@ class StatsInsights
 
     /**
      * @param  Group  $group
-     * @return list<array{code: string, to_center: bool, share: ?float}>
+     * @return list<array{code: string, to_center: ?bool, share: ?float}>
      */
     private function directionShares(array $group, Carbon $yesterday): array
     {
@@ -477,7 +477,7 @@ class StatsInsights
 
         return array_map(fn (string $code): array => [
             'code' => $code,
-            'to_center' => (bool) $group['toCenter'][$code],
+            'to_center' => $group['toCenter'][$code],
             'share' => $sum > 0 ? $totals[$code] / $sum : null,
         ], $group['codes']);
     }

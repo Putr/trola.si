@@ -3,9 +3,7 @@
 namespace App\Services;
 
 use App\Enums\FilterReason;
-use App\Models\Station;
 use Carbon\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Throwable;
@@ -29,9 +27,6 @@ class StatsService
 
     /** Pages counted on their own; station pages are summed separately. */
     private const PAGES = ['home', 'search', 'geosearch'];
-
-    /** Pages listed (besides stations) in the popular pages ranking. */
-    private const RANKED_PAGES = ['home', 'search', 'geosearch', 'not_found'];
 
     /**
      * Count a page view, and an app view too when it came from the Android app.
@@ -76,36 +71,6 @@ class StatsService
             'pct_from_avg' => null,
             'yoy' => null,
         ];
-    }
-
-    /**
-     * The most viewed pages over the last $days days, with week-over-week and
-     * year-over-year trends.
-     *
-     * @return Collection<string, array{name: string, url: string, views: int, trends: array{wow?: array{type: string, diff: int, pct: float}, yoy?: array{type: string, diff: int, pct: float}}, change: array{type: string, diff: int, pct: float}|null}>
-     */
-    public function getPopularPages(int $days = 7, int $limit = 10): Collection
-    {
-        $current = $this->pageViewsForPeriod($days, 0);
-        $previous = $this->pageViewsForPeriod($days, $days);
-        $stations = Station::query()->get(['code', 'name'])->keyBy('code');
-
-        return $current
-            ->sortDesc()
-            ->take($limit)
-            ->map(function (int $views, string $pageId) use ($previous, $stations, $days): array {
-                $trends = array_filter([
-                    'wow' => $this->trend('WoW', $views, $previous->get($pageId, 0)),
-                    'yoy' => $this->trend('YOY', $views, $this->pageViewsOnDays($pageId, $days, 365)),
-                ]);
-
-                return [
-                    ...$this->describePage($pageId, $stations),
-                    'views' => $views,
-                    'trends' => $trends,
-                    'change' => $trends['wow'] ?? null,
-                ];
-            });
     }
 
     /**
@@ -276,48 +241,6 @@ class StatsService
     }
 
     /**
-     * Views per page id over $days days, ending $offsetDays days ago.
-     *
-     * @return Collection<string, int>
-     */
-    private function pageViewsForPeriod(int $days, int $offsetDays): Collection
-    {
-        $views = collect();
-
-        for ($i = $offsetDays; $i < $offsetDays + $days; $i++) {
-            $date = Carbon::now()->subDays($i)->format('Y_m_d');
-
-            foreach (self::RANKED_PAGES as $page) {
-                $count = $this->getPageViews($date, $page);
-                if ($count > 0) {
-                    $views->put($page, $views->get($page, 0) + $count);
-                }
-            }
-
-            foreach ($this->stationViewsForDate($date) as $pageId => $count) {
-                if ($count > 0) {
-                    $views->put($pageId, $views->get($pageId, 0) + $count);
-                }
-            }
-        }
-
-        return $views;
-    }
-
-    /**
-     * Views of one page id over $days days, starting $daysAgo days ago.
-     */
-    private function pageViewsOnDays(string $pageId, int $days, int $daysAgo): int
-    {
-        $total = 0;
-        for ($i = 0; $i < $days; $i++) {
-            $total += $this->getPageViews(Carbon::now()->subDays($daysAgo + $i)->format('Y_m_d'), $pageId);
-        }
-
-        return $total;
-    }
-
-    /**
      * Station page views on a day, keyed by page id (station_{code} or station_{code}_all).
      *
      * @return array<string, int>
@@ -334,45 +257,6 @@ class StatsService
         }
 
         return $views;
-    }
-
-    /**
-     * @param  Collection<string, Station>  $stations
-     * @return array{name: string, url: string}
-     */
-    private function describePage(string $pageId, Collection $stations): array
-    {
-        $fixed = [
-            'home' => ['name' => 'Home Page', 'url' => '/'],
-            'search' => ['name' => 'Search Page', 'url' => '/search'],
-            'geosearch' => ['name' => 'Geolocation Search', 'url' => '/geosearch'],
-            'not_found' => ['name' => 'Not Found Page', 'url' => '/not-found'],
-        ];
-
-        if (isset($fixed[$pageId])) {
-            return $fixed[$pageId];
-        }
-
-        preg_match('/^station_(\d+)(_all)?$/', $pageId, $matches);
-        $code = $matches[1] ?? '';
-        $bothDirections = isset($matches[2]);
-
-        return [
-            'name' => 'Station: '.($stations->get($code)->name ?? $code).($bothDirections ? ' (Both Directions)' : ''),
-            'url' => '/'.$code.($bothDirections ? '/all' : ''),
-        ];
-    }
-
-    /**
-     * @return array{type: string, diff: int, pct: float}|null
-     */
-    private function trend(string $type, int $views, int $previous): ?array
-    {
-        if ($previous > 0) {
-            return ['type' => $type, 'diff' => $views - $previous, 'pct' => round(($views - $previous) / $previous * 100, 1)];
-        }
-
-        return $views > 0 ? ['type' => $type, 'diff' => $views, 'pct' => 100.0] : null;
     }
 
     private function getPageViews(string $date, string $page): int

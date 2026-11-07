@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\FilterReason;
-use App\Models\Station;
 use App\Services\StatsService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Redis;
@@ -49,34 +48,6 @@ it('counts station views under the production key prefix', function () {
         ->and(Redis::hget("stats_day_{$date}", 'station_600011'))->toBe('2');
 
     Redis::flushdb();
-});
-
-it('lists popular pages with station names and week-over-week change', function () {
-    Station::factory()->create(['code' => '600011', 'name' => 'Bavarski dvor']);
-    setViews(now(), 'station_600011_all', 8);
-    setViews(now()->subDays(8), 'station_600011_all', 4);
-    setViews(now(), 'home', 2);
-
-    $pages = app(StatsService::class)->getPopularPages(7, 10)->values();
-
-    expect($pages[0])->toMatchArray([
-        'name' => 'Station: Bavarski dvor (Both Directions)',
-        'url' => '/600011/all',
-        'views' => 8,
-    ])
-        ->and($pages[0]['trends']['wow'])->toBe(['type' => 'WoW', 'diff' => 4, 'pct' => 100.0])
-        ->and($pages[1]['name'])->toBe('Home Page');
-});
-
-it('caches the stats page for ten minutes', function () {
-    setViews(now(), 'home', 5);
-    $this->get('/stats')->assertOk();
-
-    setViews(now(), 'home', 9);
-    expect($this->get('/stats')->viewData('stats')->first()['home'])->toBe(5);
-
-    $this->travel(11)->minutes();
-    expect($this->get('/stats')->viewData('stats')->first()['home'])->toBe(9);
 });
 
 it('recalculates past days with --force', function () {
@@ -140,7 +111,6 @@ it('reads totals without ever scanning the keyspace', function () {
     $stats = app(StatsService::class);
     $stats->calculateRollingAverages(3);
     $stats->aggregateDay('2026_11_04', true);
-    $stats->getPopularPages();
 });
 
 describe('stats:migrate-to-hashes', function () {
@@ -287,13 +257,12 @@ it('aggregates app views and filtered counts, with zeros when absent', function 
         ->toMatchArray(['home' => 1, 'app' => 1, 'filtered' => ['reload' => 1, 'bot' => 0, 'datacenter' => 2, 'foreign' => 0]]);
 });
 
-it('keeps app and filtered fields out of station totals and popular pages', function () {
+it('keeps app and filtered fields out of station totals', function () {
     $service = app(StatsService::class);
     $service->trackPageView('station_600011', fromApp: true);
     $service->trackFiltered(FilterReason::Bot);
 
     $today = now()->format('Y_m_d');
     expect($service->getStationViewsForDate($today))->toBe(1)
-        ->and($service->aggregateDay($today, forceRecalculate: true)['stations'])->toBe(1)
-        ->and($service->getPopularPages()->keys()->all())->toBe(['station_600011']);
+        ->and($service->aggregateDay($today, forceRecalculate: true)['stations'])->toBe(1);
 });

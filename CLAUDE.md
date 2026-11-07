@@ -63,8 +63,19 @@ controller methods). When you touch an area, leave it better and covered by test
   per-day hash `stats_day_{Y_m_d}` and never throws; reads are `HGET`/`HGETALL`, never SCAN.
   Day hashes are kept forever (year-over-year). The old one-key-per-page format is folded in by
   `stats:migrate-to-hashes --execute` (report-only without the flag; atomic, re-runnable).
-  `stats:aggregate` writes `stats_agg_day_{Y_m_d}` and `stats_avg_dow_{n}`; `/stats` reads them
-  and is cached for 10 minutes. These key formats hold production history: don't change them.
+  Besides pages, the day hash holds `app` (views from the Android app, UA `TrolaAndroidApp`) and
+  `filtered:{reload|bot|datacenter|foreign}` (requests dropped from the counts).
+  `stats:aggregate` writes `stats_agg_day_{Y_m_d}` (now with `app` and `filtered`; older aggregates
+  lack them and render as "ni podatkov") and `stats_avg_dow_{n}`. These key formats hold production
+  history: don't change them.
+- **/stats page**: `App\Services\Stats\StatsInsights` does all the maths (28-day windows ending
+  yesterday; station change is the shift in a station group's share of all station views, groups
+  keyed by `App\Support\StationName::key`; totals from aggregates, station tables and lookups from
+  pipelined day-hash reads). `StatsController` caches the page base, each list and each lookup for
+  10 minutes; `StatsRequest` turns `?obdobje=3|6|12`, `?seznam=top|rising|falling|least` and
+  `?postaja=` into safe values (never a validation error). No JS: links and a GET form, inline SVG
+  in the `stats-*` components. `/stats` is not tracked. `STATS_FILTERS_SINCE` marks the day the
+  filters went live.
 - **IP filtering**: stats skip datacenter and non-European visitors using iptoasn.com `ip2asn-combined` (PDDL v1.0, public domain, no account). `stats:update-ip-data` (monthly, 04:00) compiles it into `storage/app/ipdata/ranges.php`; `App\Services\Stats\IpClassifier` binary-searches it in memory. A missing file means everything counts; IPs are never stored.
 - **Scheduler** (`routes/console.php`): stats aggregation (02:00 + hourly), `stations:sync`
   (03:00), station cache warm (03:20), sitemap (03:30). Production needs the `schedule:run` cron.

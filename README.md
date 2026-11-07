@@ -64,7 +64,18 @@ Laravel 13 on PHP 8.4+, MySQL 8, Redis, Blade + Tailwind CSS 3 + a little vanill
    It refreshes the stations daily at 03:00 (`stations:sync`), aggregates the anonymous page
    counters (02:00 and hourly), warms the station cache and regenerates the sitemap.
 
-5. After every deploy, clear the compiled caches:
+5. Before the usage-statistics filters go live (first deploy of the stats insights), fetch the IP
+   data once and rebuild the daily aggregates so `/stats` has history with the new fields:
+
+   ```bash
+   php artisan stats:update-ip-data
+   php artisan stats:aggregate --days=800 --force
+   ```
+
+   `stats:update-ip-data` then runs monthly from the scheduler. Without the data file nothing is
+   filtered by IP.
+
+6. After every deploy, clear the compiled caches:
 
    ```bash
    php artisan optimize:clear && php artisan optimize
