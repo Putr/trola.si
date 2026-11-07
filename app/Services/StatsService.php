@@ -119,9 +119,28 @@ class StatsService
             'yoy' => $this->yearOverYear($carbonDate, $totals),
         ];
 
-        Redis::set("stats_agg_day_{$date}", json_encode($aggregated));
+        // A day nobody counted stays missing rather than becoming a genuine zero.
+        if ($this->hasDayHash($date)) {
+            Redis::set("stats_agg_day_{$date}", json_encode($aggregated));
+        }
 
         return $aggregated;
+    }
+
+    /**
+     * Delete the stored aggregate of a day that has no day hash.
+     *
+     * @param  string  $date  Y_m_d
+     * @return bool whether an aggregate was removed
+     */
+    public function pruneEmptyDay(string $date): bool
+    {
+        return ! $this->hasDayHash($date) && (int) Redis::del("stats_agg_day_{$date}") > 0;
+    }
+
+    private function hasDayHash(string $date): bool
+    {
+        return (bool) Redis::exists($this->dayKey($date));
     }
 
     /**

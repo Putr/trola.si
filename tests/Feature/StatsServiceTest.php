@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\FilterReason;
+use App\Services\Stats\StatsInsights;
 use App\Services\StatsService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Redis;
@@ -62,7 +63,7 @@ it('recalculates past days with --force', function () {
 });
 
 it('fails the aggregate command when Redis is down', function () {
-    Redis::shouldReceive('get', 'set', 'hget', 'hgetall', 'connection')->andThrow(new RuntimeException('Redis down'));
+    Redis::shouldReceive('get', 'set', 'exists', 'hget', 'hgetall', 'connection')->andThrow(new RuntimeException('Redis down'));
 
     $this->artisan('stats:aggregate --today-only')->assertFailed();
 });
@@ -265,4 +266,35 @@ it('keeps app and filtered fields out of station totals', function () {
     $today = now()->format('Y_m_d');
     expect($service->getStationViewsForDate($today))->toBe(1)
         ->and($service->aggregateDay($today, forceRecalculate: true)['stations'])->toBe(1);
+});
+
+it('keeps a day without a day hash missing instead of writing zeros', function () {
+    $this->travelTo('2026-11-10 12:00');
+    Redis::hset('stats_day_2026_11_08', 'home', 4);
+    Redis::hset('stats_day_2026_11_06', 'home', 3);
+
+    $this->artisan('stats:aggregate --days=5 --force')->assertSuccessful();
+
+    $stats = app(StatsService::class);
+    expect($stats->getAggregatedDay('2026_11_07'))->toBeNull()
+        ->and($stats->getAggregatedDay('2026_11_09'))->toBeNull()
+        ->and($stats->getAggregatedDay('2026_11_08')['home'])->toBe(4)
+        ->and($stats->aggregateDay('2026_11_07', true)['home'])->toBe(0);
+
+    $trend = collect(app(StatsInsights::class)->trend(3)['days'])->keyBy('date');
+    expect($trend['2026-11-07']['views'])->toBeNull()
+        ->and($trend['2026-11-08']['views'])->toBe(4);
+});
+
+it('prunes aggregates of days that have no day hash', function () {
+    $this->travelTo('2026-11-10 12:00');
+    Redis::hset('stats_day_2026_11_08', 'home', 4);
+    Redis::set('stats_agg_day_2026_11_07', json_encode(['date' => '2026-11-07', 'home' => 0, 'stations' => 0]));
+    Redis::set('stats_agg_day_2026_11_08', json_encode(['date' => '2026-11-08', 'home' => 4, 'stations' => 0]));
+
+    $this->artisan('stats:aggregate --days=5 --prune-empty')->assertSuccessful();
+
+    $stats = app(StatsService::class);
+    expect($stats->getAggregatedDay('2026_11_07'))->toBeNull()
+        ->and($stats->getAggregatedDay('2026_11_08'))->not->toBeNull();
 });
