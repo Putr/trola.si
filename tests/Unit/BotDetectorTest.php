@@ -6,6 +6,8 @@ const WEBVIEW_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7 Build/UQ1A; wv) Appl
 const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+const CUBOT_UA = 'Mozilla/5.0 (Linux; Android 13; CUBOT P50 Build/TP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36 TrolaAndroidApp';
+
 it('flags self-announced bots', function (?string $userAgent) {
     expect((new BotDetector)->isBot($userAgent))->toBeTrue();
 })->with([
@@ -21,6 +23,9 @@ it('flags self-announced bots', function (?string $userAgent) {
     'headless' => ['HeadlessChrome/120'],
     'uptime' => ['UptimeRobot/2.0'],
     'slack' => ['Slackbot-LinkExpanding'],
+    'ahrefs' => ['Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)'],
+    'yandex' => ['Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)'],
+    'cubot phone browsing as a bot' => ['Mozilla/5.0 (Linux; Android 13; CUBOT P50) Googlebot/2.1'],
 ]);
 
 it('does not flag real browsers or the Android app', function (string $userAgent) {
@@ -29,6 +34,7 @@ it('does not flag real browsers or the Android app', function (string $userAgent
     'iphone' => [IPHONE_UA],
     'desktop' => [DESKTOP_UA],
     'android webview' => [WEBVIEW_UA],
+    'cubot phone' => [CUBOT_UA],
 ]);
 
 it('recognises the Android app only by its marker', function () {

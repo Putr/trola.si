@@ -15,7 +15,8 @@ class BotDetector
             return true;
         }
 
-        $haystack = strtolower($userAgent);
+        // CUBOT is a phone brand, not a bot, but contains the "bot" pattern.
+        $haystack = str_replace('cubot', '', strtolower($userAgent));
 
         foreach ((array) config('stats.bot_patterns') as $pattern) {
             if (str_contains($haystack, strtolower((string) $pattern))) {
