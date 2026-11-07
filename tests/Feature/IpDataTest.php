@@ -25,7 +25,7 @@ it('classifies addresses from the compiled data', function (string $ip, IpClass 
     'second adjacent slovenian range' => ['93.103.200.9', IpClass::Counted],
     'hetzner' => ['88.198.0.1', IpClass::Datacenter],
     'comcast' => ['73.1.1.1', IpClass::Foreign],
-    'cloudflare is foreign, not datacenter' => ['104.16.5.5', IpClass::Foreign],
+    'cloudflare is counted outright, not foreign or datacenter' => ['104.16.5.5', IpClass::Counted],
     'not routed' => ['120.0.0.9', IpClass::Counted],
     'ipv6 slovenian isp' => ['2a00:ee0:1234::1', IpClass::Counted],
     'ipv6 amazon' => ['2600:1f18::1', IpClass::Datacenter],
@@ -44,8 +44,8 @@ it('merges adjacent ranges of the same class', function () {
         sys_get_temp_dir().'/trola-ipdata-merge.php',
     );
 
-    // 7 fixture ranges plus 6 gaps would be 13 unmerged records; same-class neighbours collapse.
-    expect($counts['v4'])->toBe(8)
+    // Same-class neighbours (and Cloudflare, which now counts) collapse into their gaps.
+    expect($counts['v4'])->toBe(6)
         ->and($counts['v6'])->toBe(2);
 });
 
@@ -93,6 +93,7 @@ it('keeps the previous data when the download is not valid gzip', function () {
 it('downloads and installs fresh data', function () {
     $path = sys_get_temp_dir().'/trola-ipdata-fresh.php';
     pointClassifierAt($path);
+    config(['stats.ip_data_min_v4' => 1, 'stats.ip_data_min_v6' => 1]);
     Http::fake(['*' => Http::response(gzencode((string) file_get_contents(base_path('tests/fixtures/ip2asn-sample.tsv'))))]);
 
     $this->artisan('stats:update-ip-data')->assertSuccessful();
@@ -101,4 +102,69 @@ it('downloads and installs fresh data', function () {
     expect(file_exists($path))->toBeTrue()
         ->and(classify('88.198.0.1'))->toBe(IpClass::Datacenter)
         ->and(classify('93.103.1.1'))->toBe(IpClass::Counted);
+});
+
+function compileTsv(string $tsv): array
+{
+    $source = sys_get_temp_dir().'/trola-ipdata-src-'.bin2hex(random_bytes(4)).'.tsv';
+    file_put_contents($source, $tsv);
+    $output = sys_get_temp_dir().'/trola-ipdata-out-'.bin2hex(random_bytes(4)).'.php';
+    $counts = (new CompileIpRanges)->fromTsv($source, $output);
+    pointClassifierAt($output);
+
+    return $counts;
+}
+
+it('counts addresses above the last listed range', function () {
+    compileTsv(
+        "88.198.0.0\t88.198.255.255\t24940\tDE\tHETZNER-AS Hetzner Online GmbH\n"
+        ."2600:1f00::\t2600:1fff:ffff:ffff:ffff:ffff:ffff:ffff\t16509\tUS\tAMAZON-02 - Amazon.com, Inc.\n"
+    );
+
+    expect(classify('88.198.1.1'))->toBe(IpClass::Datacenter)
+        ->and(classify('88.199.0.0'))->toBe(IpClass::Counted)
+        ->and(classify('200.1.1.1'))->toBe(IpClass::Counted)
+        ->and(classify('2600:1f18::1'))->toBe(IpClass::Datacenter)
+        ->and(classify('2700::1'))->toBe(IpClass::Counted);
+});
+
+it('refuses unsorted or overlapping input', function (string $tsv) {
+    expect(fn () => compileTsv($tsv))->toThrow(RuntimeException::class);
+})->with([
+    'unsorted' => ["93.103.0.0\t93.103.255.255\t3212\tSI\tSIOL\n88.198.0.0\t88.198.255.255\t24940\tDE\tHETZNER\n"],
+    'overlapping' => ["88.198.0.0\t88.198.255.255\t24940\tDE\tHETZNER\n88.198.255.0\t88.199.0.255\t24940\tDE\tHETZNER\n"],
+]);
+
+it('keeps the previous data when the download has too few ranges', function () {
+    $path = useIpFixture();
+    $before = file_get_contents($path);
+    Http::fake(['*' => Http::response(gzencode((string) file_get_contents(base_path('tests/fixtures/ip2asn-sample.tsv'))))]);
+
+    $this->artisan('stats:update-ip-data')->assertFailed();
+
+    expect(file_get_contents($path))->toBe($before);
+});
+
+it('keeps the previous data when the download is unsorted', function () {
+    $path = useIpFixture();
+    $before = file_get_contents($path);
+    config(['stats.ip_data_min_v4' => 1, 'stats.ip_data_min_v6' => 0]);
+    Http::fake(['*' => Http::response(gzencode("93.103.0.0\t93.103.255.255\t3212\tSI\tSIOL\n88.198.0.0\t88.198.255.255\t24940\tDE\tHETZNER\n"))]);
+
+    $this->artisan('stats:update-ip-data')->assertFailed();
+
+    expect(file_get_contents($path))->toBe($before);
+});
+
+it('never echoes a data file that is not PHP', function () {
+    $path = sys_get_temp_dir().'/trola-ipdata-text.php';
+    file_put_contents($path, "secret contents <?php return ['v4' => '', 'v6' => ''];");
+    pointClassifierAt($path);
+
+    ob_start();
+    $class = classify('88.198.0.1');
+    $output = ob_get_clean();
+
+    expect($output)->toBe('')
+        ->and($class)->toBe(IpClass::Counted);
 });

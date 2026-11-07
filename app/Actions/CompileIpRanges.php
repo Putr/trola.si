@@ -50,7 +50,10 @@ class CompileIpRanges
 
                 if ($family['end'] !== null) {
                     $expected = $this->increment($family['end']);
-                    if ($expected !== null && strcmp($startBytes, $expected) > 0) {
+                    if ($expected === null || strcmp($startBytes, $expected) < 0) {
+                        throw new RuntimeException("IP data is unsorted or overlapping at {$start}");
+                    }
+                    if (strcmp($startBytes, $expected) > 0) {
                         $this->push($family, $expected, IpClass::Counted);
                     }
                 }
@@ -61,6 +64,13 @@ class CompileIpRanges
             }
         } finally {
             fclose($handle);
+        }
+
+        foreach ([4, 16] as $width) {
+            $after = $families[$width]['end'] === null ? null : $this->increment($families[$width]['end']);
+            if ($after !== null) {
+                $this->push($families[$width], $after, IpClass::Counted);
+            }
         }
 
         $php = "<?php return ['v4' => '".addcslashes($families[4]['data'], "\\'")
@@ -99,8 +109,11 @@ class CompileIpRanges
 
         $description = strtolower($description);
 
-        if ($this->containsAny($description, (array) config('stats.datacenter_keywords'))
-            && ! $this->containsAny($description, (array) config('stats.cdn_exclusions'))) {
+        if ($this->containsAny($description, (array) config('stats.cdn_exclusions'))) {
+            return IpClass::Counted;
+        }
+
+        if ($this->containsAny($description, (array) config('stats.datacenter_keywords'))) {
             return IpClass::Datacenter;
         }
 

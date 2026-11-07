@@ -48,6 +48,14 @@ return [
     | iptoasn.com ip2asn-combined (PDDL v1.0, public domain) and where the compiled lookup lives.
     */
     'ip_data_url' => 'https://iptoasn.com/data/ip2asn-combined.tsv.gz',
+
+    /*
+    | A download with fewer compiled ranges than this is treated as truncated and not installed
+    | (production has about 207k IPv4 and 91k IPv6 ranges).
+    */
+    'ip_data_min_v4' => 100000,
+    'ip_data_min_v6' => 20000,
+
     'ip_data_path' => storage_path('app/ipdata/ranges.php'),
 
 ];

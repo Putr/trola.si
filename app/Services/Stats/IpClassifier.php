@@ -78,6 +78,15 @@ class IpClassifier
             return $empty;
         }
 
+        $handle = fopen($this->dataPath, 'rb');
+        $head = $handle === false ? '' : (string) fread($handle, 5);
+        if ($handle !== false) {
+            fclose($handle);
+        }
+        if ($head !== '<?php') {
+            return $empty;
+        }
+
         try {
             $data = include $this->dataPath;
         } catch (Throwable) {

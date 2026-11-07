@@ -30,8 +30,10 @@ class UpdateIpData extends Command
             $this->gunzip($files[0], $files[1]);
             $counts = $compiler->fromTsv($files[1], $files[2]);
 
-            if ($counts['v4'] === 0) {
-                throw new RuntimeException('Downloaded IP data contained no IPv4 ranges');
+            $minV4 = (int) config('stats.ip_data_min_v4', 100000);
+            $minV6 = (int) config('stats.ip_data_min_v6', 20000);
+            if ($counts['v4'] < $minV4 || $counts['v6'] < $minV6) {
+                throw new RuntimeException("Downloaded IP data looks truncated ({$counts['v4']} IPv4, {$counts['v6']} IPv6 ranges; expected at least {$minV4} and {$minV6})");
             }
 
             if (! rename($files[2], $target)) {
