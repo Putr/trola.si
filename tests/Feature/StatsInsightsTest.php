@@ -213,6 +213,18 @@ describe('stations', function () {
             ->and($falling[0]['change'])->toBe(-11.1);
     });
 
+    it('lists only gains as rising and only losses as falling', function () {
+        insightsSeedStationRange('2026-11-05', '2026-12-02', 'station_600011', 10);
+        insightsSeedStationRange('2026-11-05', '2026-12-02', 'station_600021', 90);
+        insightsSeedStationRange('2026-12-03', '2026-12-30', 'station_600011', 20);
+        insightsSeedStationRange('2026-12-03', '2026-12-30', 'station_600021', 80);
+
+        $insights = app(StatsInsights::class);
+
+        expect(collect($insights->stations('rising')['rows'])->pluck('name')->all())->toBe(['Konzorcij'])
+            ->and(collect($insights->stations('falling')['rows'])->pluck('name')->all())->toBe(['Šiška']);
+    });
+
     it('gives no change to a group with too few views, and keeps it out of rising and falling', function () {
         insightsSeedStationRange('2026-12-03', '2026-12-30', 'station_600021', 50);
         seedStationViews('2026_11_10', ['station_600011' => 1]);

@@ -93,7 +93,8 @@ class StatsInsights
         $ids = array_map('strval', array_keys($groups));
 
         $ids = match ($list) {
-            'rising', 'falling' => array_values(array_filter($ids, fn (string $id): bool => $summary[$id]['change'] !== null)),
+            'rising' => array_values(array_filter($ids, fn (string $id): bool => ($summary[$id]['change'] ?? 0) > 0)),
+            'falling' => array_values(array_filter($ids, fn (string $id): bool => ($summary[$id]['change'] ?? 0) < 0)),
             'top' => array_values(array_filter($ids, fn (string $id): bool => $summary[$id]['views'] > 0)),
             default => $ids,
         };
