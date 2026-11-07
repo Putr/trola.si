@@ -135,3 +135,42 @@ it('survives a malformed filters-live date', function () {
     $this->get('/stats')->assertOk()->assertDontSee('Statistika trenutno ni na voljo');
     expect(app(StatsInsights::class)->trend(3)['live_since'])->toBe('2026-11-07');
 });
+
+/**
+ * @return list<string> cache keys of the array store that start with $prefix
+ */
+function cachedKeys(string $prefix): array
+{
+    $storage = (new ReflectionProperty(Cache::getStore(), 'storage'))->getValue(Cache::getStore());
+
+    return array_values(array_filter(array_keys($storage), fn (string $key): bool => str_contains($key, $prefix)));
+}
+
+it('caches one lookup per station group, however it was searched', function () {
+    statsPageSeed();
+
+    $this->get('/stats?postaja=600011')->assertOk()->assertSee('Konzorcij');
+    $this->get('/stats?postaja=konzorcij')->assertOk();
+    $this->get('/stats?postaja=konz')->assertOk();
+
+    expect(cachedKeys('stats_lookup_'))->toHaveCount(1)
+        ->and(Cache::has('stats_lookup_'.md5('konzorcij')))->toBeTrue();
+});
+
+it('writes no cache entry for an unknown or empty term', function () {
+    statsPageSeed();
+
+    $this->get('/stats?postaja=zzz')->assertOk()->assertSee('Postaja ni najdena');
+    $this->get('/stats?postaja='.urlencode('🚌'))->assertOk()->assertSee('Postaja ni najdena');
+
+    expect(cachedKeys('stats_lookup_'))->toBe([]);
+});
+
+it('computes the 84-day station summary once for the lists and lookups', function () {
+    statsPageSeed();
+
+    $this->get('/stats?postaja=konzorcij')->assertOk();
+
+    expect(Cache::has('stats_station_summary'))->toBeTrue()
+        ->and(Cache::has('stats_groups'))->toBeTrue();
+});

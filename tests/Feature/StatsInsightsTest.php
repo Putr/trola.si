@@ -275,7 +275,9 @@ describe('lookup', function () {
         expect($insights->lookup('600012')['name'])->toBe('Konzorcij')
             ->and($insights->lookup('konzorcij')['name'])->toBe('Konzorcij')
             ->and($insights->lookup('nonexistent'))->toBeNull()
-            ->and($insights->lookup('  '))->toBeNull();
+            ->and($insights->lookup('  '))->toBeNull()
+            ->and($insights->lookup('🚌'))->toBeNull()
+            ->and($insights->lookup('中文'))->toBeNull();
     });
 
     it('prefers an exact name over a prefix match, then the first prefix match alphabetically', function () {

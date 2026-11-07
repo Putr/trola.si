@@ -7,6 +7,7 @@ use App\Services\StatsService;
 use App\Support\FiltersLiveSince;
 use App\Support\StationName;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 
 /**
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Redis;
  */
 class StatsInsights
 {
+    private const CACHE_SECONDS = 600;
+
     private const WINDOW = 28;
 
     private const MIN_DAYS = 14;
@@ -88,8 +91,7 @@ class StatsInsights
     public function stations(string $list): array
     {
         $groups = $this->groups();
-        $perDay = $this->groupViewsPerDay($groups, $this->yesterday(), self::WEEKS * 7);
-        $summary = $this->summarise($groups, $perDay);
+        ['perDay' => $perDay, 'summary' => $summary] = $this->stationSummary();
 
         $ids = array_map('strval', array_keys($groups));
 
@@ -133,15 +135,32 @@ class StatsInsights
      */
     public function lookup(string $term): ?array
     {
-        $term = trim($term);
+        $id = $this->resolveGroup($term);
+
+        return $id === null ? null : $this->lookupGroup($id);
+    }
+
+    /**
+     * The group key a search term resolves to, or null when nothing matches.
+     */
+    public function resolveGroup(string $term): ?string
+    {
+        return $this->findGroup($this->groups(), trim($term));
+    }
+
+    /**
+     * @param  string  $id  a key returned by resolveGroup()
+     * @return array{name: string, codes: list<array{code: string, to_center: ?bool, share: ?float}>, per_day: float, change: ?float, rank: int, of: int, days: list<array{date: string, views: int, avg28: ?float}>}|null
+     */
+    public function lookupGroup(string $id): ?array
+    {
         $groups = $this->groups();
-        $id = $this->findGroup($groups, $term);
-        if ($id === null) {
+        if (! isset($groups[$id])) {
             return null;
         }
 
         $yesterday = $this->yesterday();
-        $summary = $this->summarise($groups, $this->groupViewsPerDay($groups, $yesterday, self::WINDOW * 2));
+        $summary = $this->stationSummary()['summary'];
         $group = $groups[$id];
 
         $rank = 1 + count(array_filter($summary, fn (array $row): bool => $row['views'] > $summary[$id]['views']));
@@ -155,6 +174,21 @@ class StatsInsights
             'of' => count($groups),
             'days' => $this->groupDays($group, $yesterday),
         ];
+    }
+
+    /**
+     * The 84-day per-group views and the 28-day summary, computed once for all lists and lookups.
+     *
+     * @return array{perDay: array<string, list<int>>, summary: array<string, array{views: int, change: ?float}>}
+     */
+    private function stationSummary(): array
+    {
+        return Cache::remember('stats_station_summary', self::CACHE_SECONDS, function (): array {
+            $groups = $this->groups();
+            $perDay = $this->groupViewsPerDay($groups, $this->yesterday(), self::WEEKS * 7);
+
+            return ['perDay' => $perDay, 'summary' => $this->summarise($groups, $perDay)];
+        });
     }
 
     /**
@@ -335,6 +369,14 @@ class StatsInsights
      */
     private function groups(): array
     {
+        return Cache::remember('stats_groups', self::CACHE_SECONDS, fn (): array => $this->loadGroups());
+    }
+
+    /**
+     * @return array<string, Group>
+     */
+    private function loadGroups(): array
+    {
         $groups = [];
         $stations = Station::query()->whereNotNull('code')->orderBy('code')->get(['code', 'name', 'is_direction_to_center']);
 
@@ -364,6 +406,10 @@ class StatsInsights
         }
 
         $key = StationName::key($term);
+        if ($key === '') {
+            return null;
+        }
+
         if (isset($groups[$key])) {
             return $key;
         }
