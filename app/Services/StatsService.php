@@ -169,6 +169,28 @@ class StatsService
     }
 
     /**
+     * Aggregates for many days in one round trip. Days without an aggregate are null.
+     *
+     * @param  list<string>  $dates  Y_m_d
+     * @return array<string, array<string, mixed>|null> keyed by Y_m_d
+     */
+    public function getAggregatedDays(array $dates): array
+    {
+        $result = [];
+
+        foreach (array_chunk($dates, 500) as $chunk) {
+            $values = Redis::mget(array_map(fn (string $date): string => "stats_agg_day_{$date}", $chunk));
+
+            foreach ($chunk as $index => $date) {
+                $data = is_string($values[$index] ?? null) ? json_decode($values[$index], true) : null;
+                $result[$date] = is_array($data) ? $data : null;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Average totals per ISO weekday over the last $months months.
      */
     public function calculateRollingAverages(int $months = 3): void

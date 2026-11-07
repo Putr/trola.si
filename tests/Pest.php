@@ -52,3 +52,34 @@ function pointClassifierAt(string $path): void
     config(['stats.ip_data_path' => $path]);
     app()->forgetInstance(IpClassifier::class);
 }
+
+/**
+ * Write a daily aggregate the way StatsService::aggregateDay stores it.
+ *
+ * @param  string  $Ymd  Y_m_d
+ * @param  array<string, mixed>  $extra  merged over the defaults (e.g. app, filtered, geosearch)
+ */
+function seedAgg(string $Ymd, int $home, int $stations, array $extra = []): void
+{
+    Redis::set("stats_agg_day_{$Ymd}", json_encode([
+        'date' => str_replace('_', '-', $Ymd),
+        'home' => $home,
+        'search' => 0,
+        'geosearch' => 0,
+        'stations' => $stations,
+        ...$extra,
+    ]));
+}
+
+/**
+ * Set fields of a day hash.
+ *
+ * @param  string  $Ymd  Y_m_d
+ * @param  array<string, int>  $fieldCounts
+ */
+function seedStationViews(string $Ymd, array $fieldCounts): void
+{
+    foreach ($fieldCounts as $field => $count) {
+        Redis::hset("stats_day_{$Ymd}", $field, $count);
+    }
+}
